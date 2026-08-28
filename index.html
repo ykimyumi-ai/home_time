@@ -38,6 +38,11 @@
     --warn:#c92a2a; --warn-soft:#fff0f0;
     --ok:#2b8a3e; --ok-soft:#ebfbee;
     --mine:#3b5bdb; --theirs:#9c36b5;
+    /* 사람 고유색 — 보는 사람이 아니라 「누구의 일정인가」로 정해진다 */
+    --c-purple:#9c36b5; --c-purple-soft:#f8edfb; --c-purple-ink:#862e9c; --c-purple-line:#ecd0f5;
+    --c-blue:#3b5bdb;   --c-blue-soft:#edf0fd;   --c-blue-ink:#2b4acb;   --c-blue-line:#ccd6f8;
+    --c-green:#2b8a3e;  --c-green-soft:#ebfbee;  --c-green-ink:#237032;  --c-green-line:#c3ead0;
+    --c-orange:#e8590c; --c-orange-soft:#fff4e6; --c-orange-ink:#d9480f; --c-orange-line:#ffd8a8;
     --radius:10px;
     --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
   }
@@ -118,6 +123,11 @@
   /* 어느 판을 보고 있는지 화면에서 바로 알 수 있게 찍어 둔다.
      사본이 여기저기 생기면 「내가 만든 것과 다르다」를 가릴 방법이 없다. */
   header .ver{font-weight:400; font-size:11px; color:var(--ink3); vertical-align:2px}
+  #myColor{display:flex; align-items:center; gap:6px}
+  #myColor .dot{width:11px; height:11px; border-radius:50%; display:inline-block}
+  .swatches{display:flex; gap:5px; align-items:center}
+  .swatches button{width:26px; height:26px; border-radius:50%; border:2px solid transparent; padding:0}
+  .swatches button.on{border-color:var(--ink)}
   header .nav{display:flex; align-items:center; gap:4px; margin-left:8px}
   header .month{font-size:16px; font-weight:600; min-width:135px; text-align:center}
   header .spacer{flex:1}
@@ -167,7 +177,11 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     background:var(--accent-soft); color:#2b4acb; border-left:3px solid var(--mine);
   }
-  .ev.theirs{background:#f8edfb; color:#862e9c; border-left-color:var(--theirs)}
+  /* 사람 고유색 — 달력 칸 */
+  .ev.cp{background:var(--c-purple-soft); color:var(--c-purple-ink); border-left-color:var(--c-purple)}
+  .ev.cb{background:var(--c-blue-soft);   color:var(--c-blue-ink);   border-left-color:var(--c-blue)}
+  .ev.cg{background:var(--c-green-soft);  color:var(--c-green-ink);  border-left-color:var(--c-green)}
+  .ev.co{background:var(--c-orange-soft); color:var(--c-orange-ink); border-left-color:var(--c-orange)}
   .ev.auto::before{content:"⚡ "}
   .ev:hover{filter:brightness(.97)}
   .more{font-size:11px; color:var(--ink3); padding-left:3px}
@@ -195,9 +209,14 @@
   }
   .spacebar button:hover{background:#fafafb}
   .spacebar button.on{background:var(--ink); border-color:var(--ink); color:#fff; font-weight:600}
-  .spacebar button.on.mine{background:var(--mine); border-color:var(--mine)}
-  .spacebar button.on.theirs{background:var(--theirs); border-color:var(--theirs)}
+  .spacebar button.on.cp{background:var(--c-purple); border-color:var(--c-purple)}
+  .spacebar button.on.cb{background:var(--c-blue);   border-color:var(--c-blue)}
+  .spacebar button.on.cg{background:var(--c-green);  border-color:var(--c-green)}
+  .spacebar button.on.co{background:var(--c-orange); border-color:var(--c-orange)}
   .spacebar .slabel{font-size:11.5px; color:var(--ink3); margin-right:2px}
+  .spacebar .sdot{width:8px; height:8px; border-radius:50%; display:inline-block;
+                  margin-right:6px; vertical-align:0}
+  .spacebar button.on .sdot{background:#fff !important}
 
   .spacenote{
     display:none; background:var(--accent-soft); border:1px solid #ccd6f8;
@@ -226,8 +245,10 @@
     font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px;
     background:var(--bg); color:var(--ink2); white-space:nowrap;
   }
-  .obadge.mine{background:var(--accent-soft); color:#2b4acb}
-  .obadge.theirs{background:#f8edfb; color:#862e9c}
+  .obadge.cp{background:var(--c-purple-soft); color:var(--c-purple-ink)}
+  .obadge.cb{background:var(--c-blue-soft);   color:var(--c-blue-ink)}
+  .obadge.cg{background:var(--c-green-soft);  color:var(--c-green-ink)}
+  .obadge.co{background:var(--c-orange-soft); color:var(--c-orange-ink)}
   .dbadge{font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px;
           background:var(--warn-soft); color:var(--warn); white-space:nowrap}
   .dbadge.ok{background:var(--ok-soft); color:var(--ok)}
@@ -287,7 +308,10 @@
   .lst .row:last-child{border-bottom:0}
   .lst .row:hover{background:#fafafb}
   .lst .rt{font-size:12px; font-weight:700; color:var(--mine); min-width:46px; flex:0 0 auto}
-  .lst .row.theirs .rt{color:var(--theirs)}
+  .lst .row.cp .rt{color:var(--c-purple)}
+  .lst .row.cb .rt{color:var(--c-blue)}
+  .lst .row.cg .rt{color:var(--c-green)}
+  .lst .row.co .rt{color:var(--c-orange)}
   .lst .rn{font-size:13.5px; font-weight:600}
   .lst .rs{font-size:11.5px; color:var(--ink3)}
   .lst .rempty{padding:13px; font-size:12.5px; color:var(--ink3); text-align:center}
@@ -317,7 +341,10 @@
   .daysheet .drow:hover{background:#fafafb}
   .daysheet .dt{font-size:12px; font-weight:700; color:var(--mine);
                 min-width:44px; flex:0 0 auto}
-  .daysheet .drow.theirs .dt{color:var(--theirs)}
+  .daysheet .drow.cp .dt{color:var(--c-purple)}
+  .daysheet .drow.cb .dt{color:var(--c-blue)}
+  .daysheet .drow.cg .dt{color:var(--c-green)}
+  .daysheet .drow.co .dt{color:var(--c-orange)}
   .daysheet .dn{font-size:13.5px; font-weight:600}
   .daysheet .dsub{font-size:11.5px; color:var(--ink3)}
   .daysheet .dempty{padding:16px 12px; font-size:12.5px; color:var(--ink3); text-align:center}
@@ -352,7 +379,10 @@
       font-size:0; line-height:0; color:transparent; overflow:hidden;
       background:var(--mine);
     }
-    .day .ev.theirs{background:var(--theirs)}
+    .day .ev.cp{background:var(--c-purple)}
+    .day .ev.cb{background:var(--c-blue)}
+    .day .ev.cg{background:var(--c-green)}
+    .day .ev.co{background:var(--c-orange)}
     .day .ev.auto::before{content:none}
     .more{font-size:10px; padding:0}
     .day.sel{background:var(--accent-soft); box-shadow:inset 0 0 0 2px var(--accent)}
@@ -399,11 +429,20 @@
     border-radius:9px; padding:6px 11px 7px; cursor:pointer; transition:.1s;
   }
   .uc:hover{background:#fafafb; border-color:#d5d5da}
-  .uc.theirs{border-left-color:var(--theirs)}
+  .uc.cp{border-left-color:var(--c-purple)}
+  .uc.cb{border-left-color:var(--c-blue)}
+  .uc.cg{border-left-color:var(--c-green)}
+  .uc.co{border-left-color:var(--c-orange)}
   .uc.soon{background:var(--accent-soft); border-color:#ccd6f8}
-  .uc.soon.theirs{background:#f8edfb; border-color:#ecd0f5}
+  .uc.soon.cp{background:var(--c-purple-soft); border-color:var(--c-purple-line)}
+  .uc.soon.cb{background:var(--c-blue-soft);   border-color:var(--c-blue-line)}
+  .uc.soon.cg{background:var(--c-green-soft);  border-color:var(--c-green-line)}
+  .uc.soon.co{background:var(--c-orange-soft); border-color:var(--c-orange-line)}
   .uc .when{font-size:11.5px; font-weight:700; color:var(--accent); margin-bottom:1px}
-  .uc.theirs .when{color:var(--theirs)}
+  .uc.cp .when{color:var(--c-purple)}
+  .uc.cb .when{color:var(--c-blue)}
+  .uc.cg .when{color:var(--c-green)}
+  .uc.co .when{color:var(--c-orange)}
   .uc .t{font-size:13px; font-weight:600; white-space:nowrap;
          overflow:hidden; text-overflow:ellipsis}
   .uc .sub{font-size:11.5px; color:var(--ink3); white-space:nowrap;
@@ -534,7 +573,7 @@
     <button class="btn btn-sm" id="demoExit">나가서 설정하기</button>
   </div>
   <header>
-    <div class="brand">우리 일정 <span class="ver" id="ver">v15</span></div>
+    <div class="brand">우리 일정 <span class="ver" id="ver">v16</span></div>
     <div class="nav">
       <button class="icon-btn" id="prevM" title="이전 달">‹</button>
       <div class="month" id="monthLabel"></div>
@@ -544,6 +583,8 @@
     <div class="spacer"></div>
     <button class="btn btn-sm btn-primary" id="addBtn">+ 일정 추가</button>
     <div class="who" id="whoLabel"></div>
+    <button class="btn btn-sm" id="myColor" title="내 색 바꾸기">내 색</button>
+    <span class="swatches" id="colorPick" style="display:none"></span>
     <button class="btn btn-sm" id="linkPhone" title="폰이나 배우자 기기에서 열 수 있는 링크를 만듭니다">폰 연결</button>
     <button class="btn btn-sm" id="signOut2">로그아웃</button>
   </header>
@@ -730,6 +771,8 @@ let me = null;                 // { id, email }
 let myProfile = null;          // { id, household_id, display_name }
 let household = null;          // { id, name, invite_code }
 let members = {};              // profile_id -> display_name
+let profileById = {};          // profile_id -> 프로필 전체 (색 포함)
+let memberOrder = [];          // 합류 순서 — 색을 안 정했을 때 쓴다
 let viewMonth = startOfMonth(new Date());
 let events = [];               // 현재 조회 범위의 일정
 let upcoming = [];             // 하단 띠 — 지금부터 앞으로 (달력 범위와 무관)
@@ -887,6 +930,8 @@ function applyCfgLink(){
   catch(e){ location.hash = ""; }
   return true;
 }
+
+$("myColor").onclick = toggleColorPick;
 
 $("linkPhone").onclick = () => {
   if(demo){
@@ -1053,6 +1098,11 @@ function startDemo(){
   myProfile = { id: DEMO_ME, household_id: "demo-hh", display_name: "유미" };
   household = { id: "demo-hh", name: "우리집", invite_code: "DEMO2027" };
   members   = { [DEMO_ME]:"유미", [DEMO_SP]:"남편" };
+  profileById = {
+    [DEMO_ME]: { id:DEMO_ME, display_name:"유미", color:"purple" },
+    [DEMO_SP]: { id:DEMO_SP, display_name:"남편", color:"blue" }
+  };
+  memberOrder = [DEMO_ME, DEMO_SP];
   viewMonth = startOfMonth(new Date());
   anchor    = new Date();
   events    = demoEvents();
@@ -1069,6 +1119,7 @@ function startDemo(){
   $("demoBar").style.display = "flex";
   show("app");
   applyDevTools();
+  renderMyColor();
   syncViewUI();
   renderMain();
   renderInbox();
@@ -1202,9 +1253,14 @@ async function enterApp(){
   household = hh;
 
   const { data:ms } = await sb.from("profiles")
-    .select("id, display_name").eq("household_id", myProfile.household_id);
-  members = {};
-  (ms||[]).forEach(p => { members[p.id] = p.display_name; });
+    .select("*").eq("household_id", myProfile.household_id)
+    .order("created_at");
+  members = {}; profileById = {}; memberOrder = [];
+  (ms||[]).forEach(p => {
+    members[p.id] = p.display_name;
+    profileById[p.id] = p;
+    memberOrder.push(p.id);
+  });
 
   $("whoLabel").textContent =
     (household ? household.name+" · " : "") + (myProfile.display_name||"") +
@@ -1212,6 +1268,7 @@ async function enterApp(){
 
   show("app");
   applyDevTools();
+  renderMyColor();
   syncViewUI();
   renderSpaceBar();
   await loadProjects();                      // 일정보다 먼저 — 공간 필터가 이 값을 쓴다
@@ -1234,6 +1291,9 @@ function subscribe(){
     .on("postgres_changes",
         { event:"*", schema:"public", table:"notes", filter:"household_id=eq."+hh },
         () => loadNotes())
+    .on("postgres_changes",
+        { event:"*", schema:"public", table:"profiles", filter:"household_id=eq."+hh },
+        () => reloadMembers())
     .on("postgres_changes",
         { event:"*", schema:"public", table:"projects", filter:"household_id=eq."+hh },
         () => loadProjects())
@@ -1271,6 +1331,97 @@ function projName(ev){
   return p ? p.name : "";
 }
 
+/* ================================================================
+   사람 고유색
+   보는 사람이 아니라 「누구의 일정인가」로 색이 정해진다.
+   그래야 두 사람이 같은 화면을 보며 「저 보라색」이라고 가리킬 수 있다.
+   ================================================================ */
+const COLORS = [
+  { key:"purple", cls:"cp", name:"보라", hex:"#9c36b5" },
+  { key:"blue",   cls:"cb", name:"파랑", hex:"#3b5bdb" },
+  { key:"green",  cls:"cg", name:"초록", hex:"#2b8a3e" },
+  { key:"orange", cls:"co", name:"주황", hex:"#e8590c" }
+];
+const COLOR_BY_KEY = {};
+COLORS.forEach(c => { COLOR_BY_KEY[c.key] = c; });
+
+/**
+ * 그 사람의 색.
+ * 정해 둔 색이 있으면 그것을 쓰고, 없으면 합류 순서로 준다
+ * (먼저 합류한 사람이 보라, 다음이 파랑).
+ */
+function colorOf(profileId){
+  const p = profileById[profileId];
+  if(p && p.color && COLOR_BY_KEY[p.color]) return COLOR_BY_KEY[p.color];
+  const i = memberOrder.indexOf(profileId);
+  return COLORS[(i < 0 ? 0 : i) % COLORS.length];
+}
+function colorCls(profileId){ return colorOf(profileId).cls; }
+
+/** 헤더의 「내 색」 단추에 지금 색을 칠한다 */
+function renderMyColor(){
+  const b = $("myColor");
+  if(!b || !me) return;
+  const c = colorOf(me.id);
+  b.innerHTML = '<span class="dot" style="background:' + c.hex + '"></span>내 색';
+}
+
+/** 색판을 폈다 접었다 */
+function toggleColorPick(){
+  const box = $("colorPick");
+  if(!box || !me) return;
+  if(box.style.display !== "none"){ box.style.display = "none"; return; }
+
+  const cur = colorOf(me.id).key;
+  // 배우자가 쓰는 색은 고를 수 없게 한다 — 같은 색이면 구분하려던 뜻이 사라진다
+  const taken = {};
+  Object.keys(members).forEach(id => {
+    if(id !== me.id) taken[colorOf(id).key] = members[id];
+  });
+
+  box.innerHTML = COLORS.map(c => {
+    const who = taken[c.key];
+    return '<button data-c="' + c.key + '"'
+         + ' class="' + (c.key === cur ? "on" : "") + '"'
+         + ' style="background:' + c.hex + (who ? "; opacity:.35; cursor:not-allowed" : "") + '"'
+         + ' title="' + escapeHtml(who ? c.name + " — " + who + "님이 쓰는 색" : c.name) + '"'
+         + (who ? " disabled" : "") + "></button>";
+  }).join("");
+  box.style.display = "flex";
+
+  box.querySelectorAll("[data-c]").forEach(x => {
+    x.onclick = () => { box.style.display = "none"; setMyColor(x.dataset.c); };
+  });
+}
+
+async function setMyColor(key){
+  if(!COLOR_BY_KEY[key]) return;
+
+  if(demo){
+    if(profileById[me.id]) profileById[me.id].color = key;
+    afterColorChange();
+    return;
+  }
+
+  const { error } = await sb.from("profiles").update({ color: key }).eq("id", me.id);
+  if(error){
+    const m = (error.message || "").toLowerCase();
+    alert(m.includes("color") || m.includes("schema cache")
+      ? "색을 저장할 칸이 아직 없습니다.\nsupabase/07_colors.sql 을 한 번 실행해 주세요."
+      : "색을 바꾸지 못했습니다: " + error.message);
+    return;
+  }
+  if(profileById[me.id]) profileById[me.id].color = key;
+  afterColorChange();
+}
+
+function afterColorChange(){
+  renderMyColor();
+  renderSpaceBar();
+  renderMain();
+  loadUpcoming();
+}
+
 function spaceLabel(v){
   if(v === "all") return "전체";
   if(v === "shared") return "공통";
@@ -1283,15 +1434,17 @@ function renderSpaceBar(){
   const ids = Object.keys(members);
   ids.sort((a, b) => (a === me.id ? -1 : b === me.id ? 1 : 0));   // 나를 먼저
 
-  const btn = (v, extra) =>
+  const btn = (v, extra, dotHex) =>
     '<button data-s="' + v + '" class="' + (space === v ? "on " + (extra || "") : "") + '">'
+    // 고르지 않아도 누가 무슨 색인지 보여야 한다 — 색이 사람을 뜻하기 때문이다
+    + (dotHex ? '<span class="sdot" style="background:' + dotHex + '"></span>' : "")
     + escapeHtml(spaceLabel(v)) + "</button>";
 
   el.innerHTML =
       '<span class="slabel">공간</span>'
     + btn("all")
     + btn("shared")
-    + ids.map(id => btn(id, id === me.id ? "mine" : "theirs")).join("");
+    + ids.map(id => btn(id, colorCls(id), colorOf(id).hex)).join("");
 
   el.querySelectorAll("[data-s]").forEach(b => {
     b.onclick = () => setSpace(b.dataset.s);
@@ -1445,7 +1598,7 @@ function dayRows(list){
       const mine = ev.owner_id === me.id;
       const who  = mine ? "" : (members[ev.owner_id] || "배우자");
       const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
-      return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
+      return '<div class="row '+colorCls(ev.owner_id)+'" data-ev="'+ev.id+'">'
            +   '<div class="rt">'+(ev.all_day ? "종일" : hhmm(new Date(ev.starts_at)))+"</div>"
            +   "<div>"
            +     '<div class="rn">'+escapeHtml(ev.title)+"</div>"
@@ -1576,12 +1729,13 @@ function renderCalendar(){
       + '<div class="dnum">'+d.getDate()+"</div>"
       + '<div class="evs">'
       + list.map(ev => {
+          const cc = colorCls(ev.owner_id);
           const mine = ev.owner_id === me.id;
           const auto = ev.source !== "manual";
           const label = (ev.all_day ? "" : hhmm(new Date(ev.starts_at))+" ") + ev.title;
           const who = mine ? "" : (members[ev.owner_id] || "배우자")+" · ";
           const pn  = projName(ev);
-          return '<div class="ev'+(mine?"":" theirs")+(auto?" auto":"")+'" '
+          return '<div class="ev '+cc+(auto?" auto":"")+'" '
                + 'data-ev="'+ev.id+'" title="'+escapeHtml(who+(pn?pn+" · ":"")+label)+'">'
                + (pn ? '<span class="pj">'+escapeHtml(pn)+"</span>" : "")
                + escapeHtml(label)+"</div>";
@@ -1706,7 +1860,7 @@ function renderDaySheet(){
             const mine = ev.owner_id === me.id;
             const who  = mine ? "" : (members[ev.owner_id] || "배우자");
             const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
-            return '<div class="drow'+(mine?"":" theirs")+'" data-d="'+ev.id+'">'
+            return '<div class="drow '+colorCls(ev.owner_id)+'" data-d="'+ev.id+'">'
                  +   '<div class="dt">'+(ev.all_day ? "종일" : hhmm(new Date(ev.starts_at)))+"</div>"
                  +   "<div>"
                  +     '<div class="dn">'+escapeHtml(ev.title)+"</div>"
@@ -1832,7 +1986,7 @@ function renderUpcoming(){
     const when = relDay(s) + (ev.all_day ? " · 종일" : " " + hhmm(s));
     const who  = mine ? "" : (members[ev.owner_id] || "배우자");
     const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
-    return '<div class="uc'+(mine?"":" theirs")+(soon?" soon":"")+'" data-up="'+ev.id+'">'
+    return '<div class="uc '+colorCls(ev.owner_id)+(soon?" soon":"")+'" data-up="'+ev.id+'">'
          +   '<div class="when">'+escapeHtml(when)+"</div>"
          +   '<div class="t">'+escapeHtml(ev.title)+"</div>"
          +   '<div class="sub">'+(sub ? escapeHtml(sub) : "&nbsp;")+"</div>"
@@ -1862,8 +2016,7 @@ function projOwnerLabel(p){
   return p.owner_id ? (members[p.owner_id] || "배우자") : "함께";
 }
 function projOwnerCls(p){
-  if(!p.owner_id) return "";
-  return p.owner_id === me.id ? "mine" : "theirs";
+  return p.owner_id ? colorCls(p.owner_id) : "";
 }
 /** 지금 공간에서 보여야 하는 프로젝트인가 */
 function projInSpace(p){
@@ -1972,7 +2125,7 @@ function renderProjectDetail(p){
             const mine = ev.owner_id === me.id;
             const who  = mine ? "" : (members[ev.owner_id] || "배우자");
             const sub  = [who, ev.location].filter(Boolean).join(" · ");
-            return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
+            return '<div class="row '+colorCls(ev.owner_id)+'" data-ev="'+ev.id+'">'
                  +   '<div class="rt" style="min-width:78px">'
                  +     (d.getMonth()+1)+"/"+d.getDate()
                  +     (ev.all_day ? "" : " "+hhmm(d))+"</div>"
@@ -2155,6 +2308,21 @@ function noteTitle(body){
 }
 function noteRest(body){
   return (body || "").split("\n").slice(1).join("\n").trim();
+}
+
+/** 배우자가 이름이나 색을 바꿨을 때 다시 읽는다 */
+async function reloadMembers(){
+  if(demo) return;
+  const { data:ms } = await sb.from("profiles")
+    .select("*").eq("household_id", myProfile.household_id).order("created_at");
+  if(!ms) return;
+  members = {}; profileById = {}; memberOrder = [];
+  ms.forEach(p => {
+    members[p.id] = p.display_name;
+    profileById[p.id] = p;
+    memberOrder.push(p.id);
+  });
+  renderMyColor(); renderSpaceBar(); renderMain(); loadUpcoming();
 }
 
 function indexProjects(){
@@ -2413,7 +2581,7 @@ function renderSearch(){
               const mine = ev.owner_id === me.id;
               const who  = mine ? "" : (members[ev.owner_id] || "배우자");
               const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
-              return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
+              return '<div class="row '+colorCls(ev.owner_id)+'" data-ev="'+ev.id+'">'
                    +   '<div class="rt" style="min-width:74px">'
                    +     (d.getMonth()+1)+"/"+d.getDate()
                    +     (ev.all_day ? "" : " "+hhmm(d)) + "</div>"
