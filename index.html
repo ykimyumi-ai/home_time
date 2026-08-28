@@ -454,7 +454,7 @@
     <button class="btn btn-sm" id="demoExit">나가서 설정하기</button>
   </div>
   <header>
-    <div class="brand">우리 일정 <span class="ver" id="ver">v10</span></div>
+    <div class="brand">우리 일정 <span class="ver" id="ver">v11</span></div>
     <div class="nav">
       <button class="icon-btn" id="prevM" title="이전 달">‹</button>
       <div class="month" id="monthLabel"></div>
@@ -497,10 +497,10 @@
     <aside class="inbox">
       <h2>확인 대기함 <span class="badge" id="inboxCount" style="display:none">0</span></h2>
       <div class="list" id="inboxList"></div>
-      <div style="padding:10px 12px; border-top:1px solid var(--line2)">
+      <div id="devTools" style="padding:10px 12px; border-top:1px solid var(--line2); display:none">
         <button class="btn btn-sm" style="width:100%" id="fakeBtn">시험용 후보 넣기</button>
         <button class="btn btn-sm" style="width:100%; margin-top:6px" id="alarmTestBtn">1분 뒤 알람 시험</button>
-        <div class="hint">안드로이드 앱을 만들기 전에 승인 흐름을 확인하려고 둔 버튼입니다. 2단계가 끝나면 지웁니다.</div>
+        <div class="hint">시험용 버튼입니다. 주소 끝에 <code>?dev</code> 를 붙였을 때만 보입니다.</div>
       </div>
     </aside>
   </main>
@@ -613,11 +613,14 @@ let searchRes = { events:[], notes:[] };
 let reminders = [];            // 알람 (event_id, offset_minutes, enabled)
 let editingNote = null;        // 편집 중인 메모 (null이면 새로 쓰기)
 let selectedDay = null;        // 좁은 화면에서 펼쳐 놓은 날짜 (YYYY-MM-DD)
+let daySheetInit = false;      // 좁은 화면에서 오늘을 한 번 자동으로 펼쳤는가
 let editing = null;            // 편집 중인 event (null이면 새로 만들기)
 let pendingInbox = null;       // 대기함에서 승인 중인 항목
 let channel = null;
 
 const $  = (id) => document.getElementById(id);
+/** 주소 끝에 ?dev 를 붙였을 때만 시험 버튼을 보여준다. 평소에는 방해가 된다. */
+const DEV = new URLSearchParams(location.search).has("dev");
 const KEY_URL = "wj.supabase.url";
 const KEY_KEY = "wj.supabase.key";
 
@@ -651,6 +654,11 @@ function hhmm(d){ return pad(d.getHours())+":"+pad(d.getMinutes()); }
 /* ================================================================
    화면 전환
    ================================================================ */
+function applyDevTools(){
+  const el = $("devTools");
+  if(el) el.style.display = DEV ? "" : "none";
+}
+
 function show(which){
   $("gateConfig").style.display = which==="config" ? "grid" : "none";
   $("gateAuth").style.display   = which==="auth"   ? "grid" : "none";
@@ -919,6 +927,7 @@ function startDemo(){
   $("whoLabel").textContent = "우리집 · 유미";
   $("demoBar").style.display = "flex";
   show("app");
+  applyDevTools();
   syncViewUI();
   renderMain();
   renderInbox();
@@ -1020,6 +1029,7 @@ async function enterApp(){
     (household ? "  (초대코드 "+household.invite_code+")" : "");
 
   show("app");
+  applyDevTools();
   syncViewUI();
   await Promise.all([ loadEvents(), loadInbox(), loadUpcoming(), loadNotes() ]);
   subscribe();
@@ -1241,6 +1251,15 @@ function renderCalendar(){
   const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
   $("grid").style.gridTemplateRows = "repeat("+weeks+", minmax(104px,1fr))";
 
+  // 휴대폰에서는 칸에 점만 찍히므로, 처음 들어오면 오늘 일정을 펼쳐 둔다.
+  // 「눌러야 보인다」를 모르면 점만 보이는 화면이 된다.
+  if(isNarrow() && !daySheetInit && !selectedDay
+     && viewMonth.getFullYear() === new Date().getFullYear()
+     && viewMonth.getMonth()    === new Date().getMonth()){
+    selectedDay  = todayKey;
+    daySheetInit = true;
+  }
+
   const cells = [];
   for(let i=0; i<weeks*7; i++){
     const d = addDays(start, i);
@@ -1358,9 +1377,15 @@ function openDay(k){
 
 function renderDaySheet(){
   const el = $("daySheet");
-  if(!selectedDay || !isNarrow()){
+  if(!isNarrow()){
     el.className = "daysheet";
     el.innerHTML = "";
+    return;
+  }
+  if(!selectedDay){
+    // 점만 보이는 화면에서 「누르면 된다」를 알려 준다
+    el.className = "daysheet on";
+    el.innerHTML = '<div class="dempty">날짜를 누르면 그 날 일정이 보입니다.</div>';
     return;
   }
 
