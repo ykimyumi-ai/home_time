@@ -526,7 +526,7 @@
     <button class="btn btn-sm" id="demoExit">나가서 설정하기</button>
   </div>
   <header>
-    <div class="brand">우리 일정 <span class="ver" id="ver">v13</span></div>
+    <div class="brand">우리 일정 <span class="ver" id="ver">v14</span></div>
     <div class="nav">
       <button class="icon-btn" id="prevM" title="이전 달">‹</button>
       <div class="month" id="monthLabel"></div>
@@ -731,6 +731,7 @@ let notes = [];                // 메모
 let projects = [];             // 프로젝트
 let tasks = [];                // 할 일
 let projById = {};             // id -> 프로젝트
+let projectsReady = true;      // 프로젝트 표가 준비됐는가 (06_projects.sql 실행 여부)
 let space = "all";             // 보고 있는 공간: all | shared | <프로필 id>
 let openProject = null;        // 프로젝트 상세를 열어 둔 id (null 이면 목록)
 let searchQ = "";              // 검색어
@@ -2021,9 +2022,15 @@ function openProj(p){
   $("pStatus").value = p ? p.status : "active";
   $("pDue").value    = p && p.due_date ? p.due_date : "";
   $("pMemo").value   = p && p.memo ? p.memo : "";
-  // 새로 만들 때는 지금 보고 있는 공간의 주인을 기본값으로
+  // 새로 만들 때 주인 기본값.
+  //  · 사람 공간에서 만들면 그 사람
+  //  · 공통 공간에서 만들면 「함께」
+  //  · 전체에서 만들면 「나」 — 예전엔 「함께」였는데, 이름만 자기 것으로 짓고
+  //    주인을 안 바꾸면 일정이 공통으로 새는 사고가 났다.
   const defOwner = p ? (p.owner_id || "")
-                     : (space !== "all" && space !== "shared" ? space : "");
+                     : (space === "shared" ? ""
+                        : space !== "all" ? space
+                        : me.id);
   fillOwnerSelect($("pOwner"), defOwner);
   $("pMask").classList.add("on");
   setTimeout(() => $("pName").focus(), 30);
@@ -2110,17 +2117,57 @@ function indexProjects(){
   projects.forEach(p => { projById[p.id] = p; });
 }
 
+/**
+ * 프로젝트 표가 아직 없어도 앱이 멈추면 안 된다.
+ * 06_projects.sql 을 실행하기 전에는 프로젝트 기능만 조용히 감추고
+ * 달력·메모·대기함은 그대로 쓴다.
+ */
+function missingTable(err){
+  if(!err) return false;
+  const m = ((err.message || "") + " " + (err.details || "")).toLowerCase();
+  return err.code === "42P01"
+      || m.includes("does not exist")
+      || m.includes("schema cache");
+}
+
+function applyProjectsReady(){
+  const tab = $("seg").querySelector('[data-v="projects"]');
+  if(tab) tab.style.display = projectsReady ? "" : "none";
+  const bar = $("spaceBar");
+  if(bar) bar.style.display = projectsReady ? "" : "none";
+  const pf = $("mProject");
+  if(pf && pf.closest(".field")) pf.closest(".field").style.display = projectsReady ? "" : "none";
+  if(!projectsReady){
+    space = "all";
+    if(view === "projects") view = "month";
+  }
+}
+
 async function loadProjects(){
-  if(demo){ indexProjects(); renderSpaceBar(); renderMain(); return; }
+  if(demo){ projectsReady = true; applyProjectsReady();
+            indexProjects(); renderSpaceBar(); renderMain(); return; }
+
   const [pr, tk] = await Promise.all([
     sb.from("projects").select("*").order("created_at"),
     sb.from("tasks").select("*").order("sort_order").limit(1000)
   ]);
+
+  if(missingTable(pr.error) || missingTable(tk.error)){
+    projectsReady = false;
+    projects = []; tasks = []; indexProjects();
+    applyProjectsReady();
+    syncViewUI(); renderMain();
+    console.warn("프로젝트 표가 아직 없습니다. supabase/06_projects.sql 을 실행하세요.");
+    return;
+  }
   if(pr.error){ console.error(pr.error); return; }
   if(tk.error){ console.error(tk.error); }
+
+  projectsReady = true;
   projects = pr.data || [];
   tasks    = tk.data || [];
   indexProjects();
+  applyProjectsReady();
   renderSpaceBar();
   renderMain();
 }
@@ -2721,7 +2768,7 @@ $("mSave").onclick = async () => {
         p_offset_minutes: remind
       });
       if(error) throw error;
-      const pid = $("mProject").value || null;
+      const pid = projectsReady ? ($("mProject").value || null) : null;
       if(pid && data){
         await sb.from("events").update({ project_id: pid }).eq("id", data);
       }
@@ -2729,7 +2776,7 @@ $("mSave").onclick = async () => {
       const payload = {
         household_id: myProfile.household_id,
         owner_id:     me.id,
-        project_id:   $("mProject").value || null,
+        project_id:   projectsReady ? ($("mProject").value || null) : undefined,
         title:        title,
         starts_at:    start.toISOString(),
         ends_at:      end ? end.toISOString() : null,
@@ -2738,6 +2785,9 @@ $("mSave").onclick = async () => {
         memo:         $("mMemo").value.trim() || null,
         visibility:   $("mVis").value
       };
+      Object.keys(payload).forEach(k => {
+        if(payload[k] === undefined) delete payload[k];   // 없는 칸은 보내지 않는다
+      });
       let eventId;
       if(editing){
         delete payload.owner_id;   // 소유자는 바꾸지 않는다
