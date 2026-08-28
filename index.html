@@ -187,6 +187,65 @@
     #paneList{overflow:auto; min-height:0}
   }
 
+  /* ---------- 공간 전환 (전체 · 공통 · 사람) ---------- */
+  .spacebar{display:flex; gap:6px; align-items:center; margin-bottom:10px; flex-wrap:wrap}
+  .spacebar button{
+    border:1px solid var(--line); background:#fff; color:var(--ink2);
+    padding:5px 13px; border-radius:999px; font-size:12.5px; white-space:nowrap;
+  }
+  .spacebar button:hover{background:#fafafb}
+  .spacebar button.on{background:var(--ink); border-color:var(--ink); color:#fff; font-weight:600}
+  .spacebar button.on.mine{background:var(--mine); border-color:var(--mine)}
+  .spacebar button.on.theirs{background:var(--theirs); border-color:var(--theirs)}
+  .spacebar .slabel{font-size:11.5px; color:var(--ink3); margin-right:2px}
+
+  /* 일정에 붙는 프로젝트 이름표 */
+  .pj{font-weight:700; opacity:.72}
+  .pj::after{content:" · "; font-weight:400}
+
+  /* ---------- 프로젝트 ---------- */
+  .pcard{
+    border:1px solid var(--line); border-radius:10px; background:#fff;
+    padding:12px 13px; margin-bottom:9px; cursor:pointer;
+  }
+  .pcard:hover{background:#fafafb; border-color:#d5d5da}
+  .pcard.done{background:#fafafb}
+  .pcard.done .pn{color:var(--ink3); text-decoration:line-through}
+  .pcard .ptop{display:flex; align-items:center; gap:7px; margin-bottom:5px}
+  .pcard .pn{font-size:14px; font-weight:600}
+  .pcard .pmeta{font-size:11.5px; color:var(--ink3); display:flex; gap:10px; flex-wrap:wrap}
+  .obadge{
+    font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px;
+    background:var(--bg); color:var(--ink2); white-space:nowrap;
+  }
+  .obadge.mine{background:var(--accent-soft); color:#2b4acb}
+  .obadge.theirs{background:#f8edfb; color:#862e9c}
+  .dbadge{font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px;
+          background:var(--warn-soft); color:var(--warn); white-space:nowrap}
+  .dbadge.ok{background:var(--ok-soft); color:var(--ok)}
+  .pbar{height:4px; background:var(--line2); border-radius:2px; overflow:hidden; margin-top:8px}
+  .pbar i{display:block; height:100%; background:var(--ok); border-radius:2px}
+
+  /* 할 일 */
+  .task{display:flex; gap:9px; align-items:flex-start; padding:8px 13px;
+        border-bottom:1px solid var(--line2)}
+  .task:last-of-type{border-bottom:0}
+  .task input[type=checkbox]{width:16px; height:16px; margin-top:1px;
+                             accent-color:var(--ok); flex:0 0 auto}
+  .task .tt{flex:1; font-size:13.5px}
+  .task.done .tt{color:var(--ink3); text-decoration:line-through}
+  .task .tx{border:0; background:transparent; color:var(--ink3); font-size:16px;
+            line-height:1; padding:0 2px}
+  .task .tx:hover{color:var(--warn)}
+  .taskadd{display:flex; gap:7px; padding:10px 13px; border-top:1px solid var(--line2)}
+  .taskadd input{flex:1; padding:7px 10px; border:1px solid var(--line);
+                 border-radius:8px; font-size:13px}
+  .taskadd input:focus{outline:none; border-color:var(--accent);
+                       box-shadow:0 0 0 3px var(--accent-soft)}
+
+  .backlink{border:0; background:transparent; color:var(--accent);
+            font-size:12.5px; font-weight:600; padding:0 0 8px}
+
   /* ---------- 보기 전환 줄 + 검색 ---------- */
   .viewbar{display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap}
   .seg{display:flex; gap:3px; background:var(--bg); padding:3px; border-radius:9px}
@@ -265,6 +324,9 @@
     header .month{font-size:14.5px; min-width:94px}
 
     .cal{padding:10px 12px}
+    .spacebar{gap:5px; margin-bottom:8px}
+    .spacebar button{padding:5px 10px; font-size:12px}
+    .spacebar .slabel{display:none}
     .viewbar{gap:8px; margin-bottom:10px}
     .seg{flex:1 1 100%}
     .seg button{flex:1; padding:7px 4px; font-size:12.5px}
@@ -464,7 +526,7 @@
     <button class="btn btn-sm" id="demoExit">나가서 설정하기</button>
   </div>
   <header>
-    <div class="brand">우리 일정 <span class="ver" id="ver">v12</span></div>
+    <div class="brand">우리 일정 <span class="ver" id="ver">v13</span></div>
     <div class="nav">
       <button class="icon-btn" id="prevM" title="이전 달">‹</button>
       <div class="month" id="monthLabel"></div>
@@ -480,11 +542,14 @@
 
   <main>
     <section class="cal">
+      <div class="spacebar" id="spaceBar"></div>
+
       <div class="viewbar">
         <div class="seg" id="seg">
           <button data-v="month" class="on">달력</button>
           <button data-v="week">주간</button>
           <button data-v="day">일별</button>
+          <button data-v="projects">프로젝트</button>
           <button data-v="notes">메모</button>
         </div>
         <div class="qwrap">
@@ -522,6 +587,46 @@
 </div>
 
 <div class="alarm" id="alarmBox"></div>
+
+<!-- ============ 프로젝트 모달 ============ -->
+<div class="mask" id="pMask">
+  <div class="modal">
+    <div class="head" id="pTitle">프로젝트</div>
+    <div class="body">
+      <div id="pErr"></div>
+      <div class="field">
+        <label>이름</label>
+        <input type="text" id="pName" placeholder="예) 인천서베이, 이사 준비">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>주인</label>
+          <select id="pOwner"></select>
+        </div>
+        <div class="field">
+          <label>상태</label>
+          <select id="pStatus">
+            <option value="active">진행 중</option>
+            <option value="done">완료</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>마감일 <span style="font-weight:400;color:var(--ink3)">(선택)</span></label>
+        <input type="date" id="pDue">
+      </div>
+      <div class="field">
+        <label>메모</label>
+        <textarea id="pMemo" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn btn-danger left" id="pDel" style="display:none">삭제</button>
+      <button class="btn" id="pCancel">취소</button>
+      <button class="btn btn-primary" id="pSave">저장</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============ 메모 모달 ============ -->
 <div class="mask" id="nMask">
@@ -586,6 +691,11 @@
         </div>
       </div>
       <div class="field">
+        <label>프로젝트</label>
+        <select id="mProject"></select>
+        <div class="hint">고르지 않으면 <b>공통</b> 일정이 됩니다.</div>
+      </div>
+      <div class="field">
         <label>메모</label>
         <textarea id="mMemo" rows="2"></textarea>
       </div>
@@ -618,6 +728,11 @@ let inbox = [];                // pending 후보
 let view = "month";            // month | week | day | notes | search
 let anchor = new Date();       // 주간·일별 보기의 기준 날짜
 let notes = [];                // 메모
+let projects = [];             // 프로젝트
+let tasks = [];                // 할 일
+let projById = {};             // id -> 프로젝트
+let space = "all";             // 보고 있는 공간: all | shared | <프로필 id>
+let openProject = null;        // 프로젝트 상세를 열어 둔 id (null 이면 목록)
 let searchQ = "";              // 검색어
 let searchRes = { events:[], notes:[] };
 let reminders = [];            // 알람 (event_id, offset_minutes, enabled)
@@ -933,6 +1048,12 @@ function startDemo(){
   events    = demoEvents();
   inbox     = demoInbox();
   notes     = demoNotes();
+  projects  = demoProjects();
+  tasks     = demoTasks();
+  space     = "all";
+  openProject = null;
+  indexProjects();
+  renderSpaceBar();
 
   $("whoLabel").textContent = "우리집 · 유미";
   $("demoBar").style.display = "flex";
@@ -953,19 +1074,25 @@ function demoEvents(){
   let n = 0;
   const mk = (o) => Object.assign({ id:"demo-e"+(++n), all_day:false, source:"manual",
                                     ends_at:null, location:null, memo:null,
-                                    visibility:"shared" }, o);
+                                    project_id:null, visibility:"shared" }, o);
   return [
     mk({ owner_id:DEMO_ME, title:"부모님 저녁 식사", starts_at:at(-2,18,0), location:"본가" }),
-    mk({ owner_id:DEMO_ME, title:"팀 회의",         starts_at:at(0,9,0) }),
+    mk({ owner_id:DEMO_ME, title:"중간보고 회의",     starts_at:at(0,9,0),
+         project_id:"demo-p1" }),
     mk({ owner_id:DEMO_SP, title:"저녁 약속",        starts_at:at(0,19,30), source:"kakao" }),
     mk({ owner_id:DEMO_ME, title:"서울내과의원 진료", starts_at:at(1,15,0),
          source:"sms", location:"서울내과의원" }),
     mk({ owner_id:DEMO_SP, title:"미용실",          starts_at:at(3,11,0) }),
     mk({ owner_id:DEMO_ME, title:"결혼기념일",       starts_at:at(3,0,0), all_day:true }),
-    mk({ owner_id:DEMO_SP, title:"자동차 정기점검",   starts_at:at(6,14,0), source:"email" }),
+    mk({ owner_id:DEMO_SP, title:"자동차 정기점검",   starts_at:at(6,14,0), source:"email",
+         project_id:"demo-p2" }),
     mk({ owner_id:DEMO_ME, title:"건강검진",         starts_at:at(8,8,30),
          source:"sms", visibility:"private", memo:"공복 유지" }),
     mk({ owner_id:DEMO_ME, title:"영화",            starts_at:at(10,20,0) }),
+    mk({ owner_id:DEMO_ME, title:"조사원 교육",       starts_at:at(4,10,0),
+         project_id:"demo-p1", location:"본사 회의실" }),
+    mk({ owner_id:DEMO_SP, title:"이사 견적 방문",     starts_at:at(9,11,0),
+         project_id:"demo-p3" }),
     mk({ owner_id:DEMO_SP, title:"남편 휴가",        starts_at:at(13,0,0), all_day:true })
   ];
 }
@@ -998,6 +1125,41 @@ function demoInbox(){
       captured_at:at(-1,17,5),
       suggested_title:"소방시설 점검", suggested_starts_at:null,
       suggested_location:null, extractor:"rule", confidence:0.35 }
+  ];
+}
+
+/** 표본 프로젝트 — 유미 것, 남편 것, 함께 하는 것 */
+function demoProjects(){
+  const d = (off) => { const x = new Date(); x.setDate(x.getDate()+off);
+                       return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate()); };
+  return [
+    { id:"demo-p1", household_id:"demo-hh", name:"인천서베이", owner_id:DEMO_ME,
+      status:"active", due_date:d(21), memo:"9월 중간보고 · 표본 302개" },
+    { id:"demo-p2", household_id:"demo-hh", name:"자동차 정비", owner_id:DEMO_SP,
+      status:"active", due_date:d(6),  memo:null },
+    { id:"demo-p3", household_id:"demo-hh", name:"이사 준비", owner_id:null,
+      status:"active", due_date:d(48), memo:"11월 초 이사" },
+    { id:"demo-p4", household_id:"demo-hh", name:"작년 결산", owner_id:DEMO_ME,
+      status:"done", due_date:null, memo:null }
+  ];
+}
+
+/** 표본 할 일 — 날짜가 없는 것들 */
+function demoTasks(){
+  let n = 0;
+  const t = (pid, title, done) => ({ id:"demo-t"+(++n), household_id:"demo-hh",
+    project_id:pid, title:title, done:!!done,
+    done_at: done ? new Date().toISOString() : null, sort_order:n });
+  return [
+    t("demo-p1", "조사표 최종 검토", true),
+    t("demo-p1", "조사원 교육자료 만들기", true),
+    t("demo-p1", "명부 정제", false),
+    t("demo-p1", "중간보고 초안", false),
+    t("demo-p2", "보험 갱신 알아보기", false),
+    t("demo-p2", "타이어 상태 확인", false),
+    t("demo-p3", "이삿짐 견적 세 곳", true),
+    t("demo-p3", "인터넷 이전 신청", false),
+    t("demo-p3", "관리비 정산", false)
   ];
 }
 
@@ -1041,6 +1203,8 @@ async function enterApp(){
   show("app");
   applyDevTools();
   syncViewUI();
+  renderSpaceBar();
+  await loadProjects();                      // 일정보다 먼저 — 공간 필터가 이 값을 쓴다
   await Promise.all([ loadEvents(), loadInbox(), loadUpcoming(), loadNotes() ]);
   subscribe();
 }
@@ -1060,12 +1224,80 @@ function subscribe(){
     .on("postgres_changes",
         { event:"*", schema:"public", table:"notes", filter:"household_id=eq."+hh },
         () => loadNotes())
+    .on("postgres_changes",
+        { event:"*", schema:"public", table:"projects", filter:"household_id=eq."+hh },
+        () => loadProjects())
+    .on("postgres_changes",
+        { event:"*", schema:"public", table:"tasks", filter:"household_id=eq."+hh },
+        () => loadProjects())
     .subscribe();
 }
 
 /* ================================================================
    5. 일정 불러오기 · 그리기
    ================================================================ */
+/* ================================================================
+   공간 — 전체 · 공통 · 사람
+   프로젝트에 붙지 않은 일정과 「함께」 프로젝트의 일정을 「공통」으로 본다.
+   부부 공용 달력을 그대로 두면서 각자 공간을 따로 볼 수 있게 하는 장치다.
+   ================================================================ */
+
+/** 이 일정이 속한 공간. null 이면 공통. */
+function eventSpace(ev){
+  const p = ev.project_id ? projById[ev.project_id] : null;
+  return (p && p.owner_id) ? p.owner_id : null;
+}
+
+function inSpace(ev){
+  if(space === "all") return true;
+  const owner = eventSpace(ev);
+  if(space === "shared") return owner === null;
+  return owner === space;
+}
+
+/** 일정에 붙일 프로젝트 이름 (없으면 빈 문자열) */
+function projName(ev){
+  const p = ev && ev.project_id ? projById[ev.project_id] : null;
+  return p ? p.name : "";
+}
+
+function spaceLabel(v){
+  if(v === "all") return "전체";
+  if(v === "shared") return "공통";
+  return members[v] || "배우자";
+}
+
+function renderSpaceBar(){
+  const el = $("spaceBar");
+  if(!el || !me) return;
+  const ids = Object.keys(members);
+  ids.sort((a, b) => (a === me.id ? -1 : b === me.id ? 1 : 0));   // 나를 먼저
+
+  const btn = (v, extra) =>
+    '<button data-s="' + v + '" class="' + (space === v ? "on " + (extra || "") : "") + '">'
+    + escapeHtml(spaceLabel(v)) + "</button>";
+
+  el.innerHTML =
+      '<span class="slabel">공간</span>'
+    + btn("all")
+    + btn("shared")
+    + ids.map(id => btn(id, id === me.id ? "mine" : "theirs")).join("");
+
+  el.querySelectorAll("[data-s]").forEach(b => {
+    b.onclick = () => setSpace(b.dataset.s);
+  });
+}
+
+function setSpace(v){
+  if(space === v) return;
+  space = v;
+  selectedDay = null;
+  openProject = null;
+  renderSpaceBar();
+  renderMain();
+  loadUpcoming();
+}
+
 /** 지금 보기가 필요로 하는 날짜 범위 */
 function currentRange(){
   if(view === "week"){ const s = weekStart(anchor); return [s, addDays(s, 7)]; }
@@ -1097,6 +1329,7 @@ function setView(v){
   view = v;
   selectedDay = null;
   if(v !== "search"){ searchQ = ""; $("q").value = ""; syncQ(); }
+  if(v !== "projects") openProject = null;
   syncViewUI();
   if(v === "week" || v === "day" || v === "month") loadEvents();
   else renderMain();
@@ -1124,6 +1357,10 @@ function navLabel(){
   }
   if(view === "day")
     return (anchor.getMonth()+1)+"월 "+anchor.getDate()+"일 ("+DOW_KO[anchor.getDay()]+")";
+  if(view === "projects"){
+    if(openProject && projById[openProject]) return projById[openProject].name;
+    return "프로젝트";
+  }
   if(view === "notes")  return "메모";
   return "검색";
 }
@@ -1144,6 +1381,7 @@ function renderMain(){
   if(view === "month")  return renderCalendar();
   if(view === "week")   return renderWeek();
   if(view === "day")    return renderDay();
+  if(view === "projects") return renderProjects();
   if(view === "notes")  return renderNotes();
   if(view === "search") return renderSearch();
 }
@@ -1160,7 +1398,7 @@ function dayRows(list){
     .map(ev => {
       const mine = ev.owner_id === me.id;
       const who  = mine ? "" : (members[ev.owner_id] || "배우자");
-      const sub  = [who, ev.location].filter(Boolean).join(" · ");
+      const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
       return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
            +   '<div class="rt">'+(ev.all_day ? "종일" : hhmm(new Date(ev.starts_at)))+"</div>"
            +   "<div>"
@@ -1189,7 +1427,7 @@ function renderWeek(){
   let html = "";
   for(let i=0; i<7; i++){
     const d = addDays(s, i), k = dayKey(d);
-    const list = events.filter(ev => dayKey(new Date(ev.starts_at)) === k);
+    const list = events.filter(inSpace).filter(ev => dayKey(new Date(ev.starts_at)) === k);
     const cls = ["lh"];
     if(k === tk) cls.push("today");
     else if(d.getDay() === 0) cls.push("sun");
@@ -1213,7 +1451,7 @@ function renderWeek(){
 /* ---------- 일별 보기 ---------- */
 function renderDay(){
   const k = dayKey(anchor);
-  const list = events.filter(ev => dayKey(new Date(ev.starts_at)) === k);
+  const list = events.filter(inSpace).filter(ev => dayKey(new Date(ev.starts_at)) === k);
   const isToday = k === dayKey(new Date());
   $("paneList").innerHTML =
       '<div class="lst">'
@@ -1240,7 +1478,7 @@ function renderCalendar(){
 
   // 날짜별로 일정을 모은다
   const byDay = {};
-  events.forEach(ev => {
+  events.filter(inSpace).forEach(ev => {
     const k = dayKey(new Date(ev.starts_at));
     (byDay[k] = byDay[k] || []).push(ev);
   });
@@ -1296,8 +1534,10 @@ function renderCalendar(){
           const auto = ev.source !== "manual";
           const label = (ev.all_day ? "" : hhmm(new Date(ev.starts_at))+" ") + ev.title;
           const who = mine ? "" : (members[ev.owner_id] || "배우자")+" · ";
+          const pn  = projName(ev);
           return '<div class="ev'+(mine?"":" theirs")+(auto?" auto":"")+'" '
-               + 'data-ev="'+ev.id+'" title="'+escapeHtml(who+label)+'">'
+               + 'data-ev="'+ev.id+'" title="'+escapeHtml(who+(pn?pn+" · ":"")+label)+'">'
+               + (pn ? '<span class="pj">'+escapeHtml(pn)+"</span>" : "")
                + escapeHtml(label)+"</div>";
         }).join("")
       + "</div>"
@@ -1401,6 +1641,7 @@ function renderDaySheet(){
 
   const d    = new Date(selectedDay + "T00:00");
   const list = events
+    .filter(inSpace)
     .filter(ev => dayKey(new Date(ev.starts_at)) === selectedDay)
     .sort((a, b) => {
       if(a.all_day !== b.all_day) return a.all_day ? -1 : 1;
@@ -1418,7 +1659,7 @@ function renderDaySheet(){
         ? list.map(ev => {
             const mine = ev.owner_id === me.id;
             const who  = mine ? "" : (members[ev.owner_id] || "배우자");
-            const sub  = [who, ev.location].filter(Boolean).join(" · ");
+            const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
             return '<div class="drow'+(mine?"":" theirs")+'" data-d="'+ev.id+'">'
                  +   '<div class="dt">'+(ev.all_day ? "종일" : hhmm(new Date(ev.starts_at)))+"</div>"
                  +   "<div>"
@@ -1482,6 +1723,7 @@ function pickUpcoming(list){
   const now = new Date();
   const t0  = todayStart();
   return (list || [])
+    .filter(inSpace)
     .filter(ev => {
       const s = new Date(ev.starts_at);
       return ev.all_day ? s >= t0 : s >= now;
@@ -1543,7 +1785,7 @@ function renderUpcoming(){
     const soon = !ev.all_day && (s - now) <= 3*60*60*1000;   // 3시간 안 → 강조
     const when = relDay(s) + (ev.all_day ? " · 종일" : " " + hhmm(s));
     const who  = mine ? "" : (members[ev.owner_id] || "배우자");
-    const sub  = [who, ev.location].filter(Boolean).join(" · ");
+    const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
     return '<div class="uc'+(mine?"":" theirs")+(soon?" soon":"")+'" data-up="'+ev.id+'">'
          +   '<div class="when">'+escapeHtml(when)+"</div>"
          +   '<div class="t">'+escapeHtml(ev.title)+"</div>"
@@ -1567,6 +1809,291 @@ function renderUpcoming(){
 }
 
 /* ================================================================
+   5-bb. 프로젝트 — 사람별 공간, 일정 + 할 일
+   날짜가 있으면 일정, 없으면 할 일. 그 경계가 이 화면의 규칙이다.
+   ================================================================ */
+function projOwnerLabel(p){
+  return p.owner_id ? (members[p.owner_id] || "배우자") : "함께";
+}
+function projOwnerCls(p){
+  if(!p.owner_id) return "";
+  return p.owner_id === me.id ? "mine" : "theirs";
+}
+/** 지금 공간에서 보여야 하는 프로젝트인가 */
+function projInSpace(p){
+  if(space === "all") return true;
+  if(space === "shared") return !p.owner_id;
+  return p.owner_id === space;
+}
+function projTasks(pid){ return tasks.filter(t => t.project_id === pid); }
+function projEvents(pid){
+  return events.filter(e => e.project_id === pid)
+               .sort((a,b) => new Date(a.starts_at) - new Date(b.starts_at));
+}
+/** 마감까지 남은 날. 없으면 null */
+function dueInfo(p){
+  if(!p.due_date) return null;
+  const d  = new Date(p.due_date + "T00:00");
+  const n  = Math.round((dayStart(d) - todayStart()) / 86400000);
+  if(n < 0)   return { txt:(-n)+"일 지남", late:true };
+  if(n === 0) return { txt:"오늘 마감",    late:true };
+  return { txt:"D-"+n, late:n <= 3 };
+}
+
+function renderProjects(){
+  if(openProject && projById[openProject]) return renderProjectDetail(projById[openProject]);
+
+  const list = projects.filter(projInSpace);
+  const act  = list.filter(p => p.status !== "done");
+  const done = list.filter(p => p.status === "done");
+
+  const card = (p) => {
+    const ts   = projTasks(p.id);
+    const okN  = ts.filter(t => t.done).length;
+    const evN  = projEvents(p.id).length;
+    const du   = dueInfo(p);
+    const pct  = ts.length ? Math.round(okN / ts.length * 100) : 0;
+    return '<div class="pcard'+(p.status==="done"?" done":"")+'" data-p="'+p.id+'">'
+      + '<div class="ptop">'
+      +   '<span class="pn">'+escapeHtml(p.name)+"</span>"
+      +   '<span class="obadge '+projOwnerCls(p)+'">'+escapeHtml(projOwnerLabel(p))+"</span>"
+      +   (du ? '<span class="dbadge'+(du.late?"":" ok")+'">'+escapeHtml(du.txt)+"</span>" : "")
+      + "</div>"
+      + '<div class="pmeta">'
+      +   "<span>일정 "+evN+"건</span>"
+      +   (ts.length ? "<span>할 일 "+okN+"/"+ts.length+"</span>" : "<span>할 일 없음</span>")
+      + "</div>"
+      + (ts.length ? '<div class="pbar"><i style="width:'+pct+'%"></i></div>' : "")
+      + "</div>";
+  };
+
+  $("paneList").innerHTML =
+      '<div class="lst"><div class="lh">프로젝트 '
+    +   '<span style="font-weight:400;color:var(--ink3)">'+act.length+"건 진행 중</span>"
+    +   '<span class="spacer"></span>'
+    +   '<button class="btn btn-sm btn-primary" id="pAdd">+ 새 프로젝트</button></div></div>'
+    + '<div style="margin-top:10px">'
+    + (act.length ? act.map(card).join("")
+                  : '<div class="lst"><div class="rempty">'
+                    + (space === "all" ? "아직 프로젝트가 없습니다.<br>「인천서베이」처럼 묶어서 볼 일을 만들어 보세요."
+                                       : "이 공간에는 프로젝트가 없습니다.")
+                    + "</div></div>")
+    + (done.length ? '<div class="secttl">완료 '+done.length+"건</div>"+done.map(card).join("") : "")
+    + "</div>";
+
+  $("pAdd").onclick = () => openProj(null);
+  $("paneList").querySelectorAll("[data-p]").forEach(el =>
+    el.onclick = () => { openProject = el.dataset.p; renderMain(); });
+}
+
+function renderProjectDetail(p){
+  const evs = projEvents(p.id);
+  const ts  = projTasks(p.id);
+  const du  = dueInfo(p);
+  const undone = ts.filter(t => !t.done);
+  const doneT  = ts.filter(t => t.done);
+
+  const taskRow = (t) =>
+      '<div class="task'+(t.done?" done":"")+'">'
+    +   '<input type="checkbox" data-t="'+t.id+'"'+(t.done?" checked":"")+'>'
+    +   '<span class="tt">'+escapeHtml(t.title)+"</span>"
+    +   '<button class="tx" data-tdel="'+t.id+'" aria-label="지우기">×</button>'
+    + "</div>";
+
+  $("paneList").innerHTML =
+      '<button class="backlink" id="pBack">‹ 프로젝트 목록</button>'
+    + '<div class="lst">'
+    +   '<div class="lh">'
+    +     '<span class="obadge '+projOwnerCls(p)+'">'+escapeHtml(projOwnerLabel(p))+"</span>"
+    +     '<span style="font-size:14px">'+escapeHtml(p.name)+"</span>"
+    +     (du ? '<span class="dbadge'+(du.late?"":" ok")+'">'+escapeHtml(du.txt)+"</span>" : "")
+    +     (p.status === "done" ? '<span class="obadge">완료</span>' : "")
+    +     '<span class="spacer"></span>'
+    +     '<button class="btn btn-sm" id="pEdit">고치기</button>'
+    +   "</div>"
+    +   (p.memo ? '<div style="padding:10px 13px; font-size:12.5px; color:var(--ink2); '
+                + 'white-space:pre-wrap; border-bottom:1px solid var(--line2)">'
+                + escapeHtml(p.memo)+"</div>" : "")
+    + "</div>"
+
+    + '<div class="secttl">일정 '+evs.length+"건</div>"
+    + '<div class="lst">'
+    +   '<div class="lh"><span class="spacer"></span>'
+    +     '<button class="btn btn-sm btn-primary" id="pEvAdd">+ 일정 추가</button></div>'
+    +   (evs.length
+        ? evs.map(ev => {
+            const d = new Date(ev.starts_at);
+            const mine = ev.owner_id === me.id;
+            const who  = mine ? "" : (members[ev.owner_id] || "배우자");
+            const sub  = [who, ev.location].filter(Boolean).join(" · ");
+            return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
+                 +   '<div class="rt" style="min-width:78px">'
+                 +     (d.getMonth()+1)+"/"+d.getDate()
+                 +     (ev.all_day ? "" : " "+hhmm(d))+"</div>"
+                 +   "<div><div class=\"rn\">"+escapeHtml(ev.title)+"</div>"
+                 +     (sub ? '<div class="rs">'+escapeHtml(sub)+"</div>" : "")+"</div>"
+                 + "</div>";
+          }).join("")
+        : '<div class="rempty">날짜가 정해진 일이 아직 없습니다.</div>')
+    + "</div>"
+
+    + '<div class="secttl">할 일 '+doneT.length+"/"+ts.length+"</div>"
+    + '<div class="lst">'
+    +   (ts.length ? undone.map(taskRow).join("") + doneT.map(taskRow).join("")
+                   : '<div class="rempty">날짜 없이 끝내기만 하면 되는 일을 적으세요.</div>')
+    +   '<div class="taskadd">'
+    +     '<input type="text" id="tNew" placeholder="할 일 적고 Enter">'
+    +     '<button class="btn btn-sm btn-primary" id="tAdd">추가</button>'
+    +   "</div>"
+    + "</div>";
+
+  $("pBack").onclick  = () => { openProject = null; renderMain(); };
+  $("pEdit").onclick  = () => openProj(p);
+  $("pEvAdd").onclick = () => openModal(null, dayKey(new Date()), p.id);
+  wireEventRows($("paneList"));
+
+  const add = () => {
+    const v = $("tNew").value.trim();
+    if(!v) return;
+    $("tNew").value = "";
+    addTask(p.id, v);
+  };
+  $("tAdd").onclick = add;
+  $("tNew").onkeydown = (e) => { if(e.key === "Enter") add(); };
+
+  $("paneList").querySelectorAll("[data-t]").forEach(cb =>
+    cb.onchange = () => toggleTask(cb.dataset.t, cb.checked));
+  $("paneList").querySelectorAll("[data-tdel]").forEach(b =>
+    b.onclick = () => delTask(b.dataset.tdel));
+}
+
+/* ---------- 할 일 ---------- */
+async function addTask(pid, title){
+  const order = projTasks(pid).length;
+  if(demo){
+    tasks.push({ id:"demo-t"+Date.now(), household_id:"demo-hh", project_id:pid,
+                 title:title, done:false, done_at:null, sort_order:order });
+    renderMain(); return;
+  }
+  const { error } = await sb.from("tasks").insert({
+    household_id: myProfile.household_id, project_id: pid,
+    title: title, sort_order: order
+  });
+  if(error){ alert("실패: "+error.message); return; }
+  await loadProjects();
+}
+
+async function toggleTask(id, done){
+  if(demo){
+    const t = tasks.find(x => x.id === id);
+    if(t){ t.done = done; t.done_at = done ? new Date().toISOString() : null; }
+    renderMain(); return;
+  }
+  const { error } = await sb.from("tasks").update({ done: done }).eq("id", id);
+  if(error){ alert("실패: "+error.message); }
+  await loadProjects();
+}
+
+async function delTask(id){
+  if(demo){ tasks = tasks.filter(x => x.id !== id); renderMain(); return; }
+  const { error } = await sb.from("tasks").delete().eq("id", id);
+  if(error){ alert("실패: "+error.message); }
+  await loadProjects();
+}
+
+/* ---------- 프로젝트 모달 ---------- */
+let editingProj = null;
+
+function fillOwnerSelect(sel, val){
+  const ids = Object.keys(members);
+  ids.sort((a, b) => (a === me.id ? -1 : b === me.id ? 1 : 0));
+  sel.innerHTML = '<option value="">함께</option>'
+    + ids.map(id => '<option value="'+id+'">'+escapeHtml(members[id])+"</option>").join("");
+  sel.value = val || "";
+}
+
+function openProj(p){
+  editingProj = p || null;
+  msg($("pErr"), "");
+  $("pTitle").textContent = p ? "프로젝트 고치기" : "새 프로젝트";
+  $("pDel").style.display = p ? "inline-block" : "none";
+  $("pName").value   = p ? p.name : "";
+  $("pStatus").value = p ? p.status : "active";
+  $("pDue").value    = p && p.due_date ? p.due_date : "";
+  $("pMemo").value   = p && p.memo ? p.memo : "";
+  // 새로 만들 때는 지금 보고 있는 공간의 주인을 기본값으로
+  const defOwner = p ? (p.owner_id || "")
+                     : (space !== "all" && space !== "shared" ? space : "");
+  fillOwnerSelect($("pOwner"), defOwner);
+  $("pMask").classList.add("on");
+  setTimeout(() => $("pName").focus(), 30);
+}
+function closeProj(){ $("pMask").classList.remove("on"); editingProj = null; }
+
+$("pCancel").onclick = closeProj;
+$("pMask").onclick = (e) => { if(e.target === $("pMask")) closeProj(); };
+
+$("pSave").onclick = async () => {
+  const name = $("pName").value.trim();
+  if(!name) return msg($("pErr"), "이름을 입력해 주세요.");
+  const payload = {
+    name: name,
+    owner_id: $("pOwner").value || null,
+    status:   $("pStatus").value,
+    due_date: $("pDue").value || null,
+    memo:     $("pMemo").value.trim() || null
+  };
+
+  if(demo){
+    if(editingProj) Object.assign(editingProj, payload);
+    else projects.push(Object.assign({ id:"demo-p"+Date.now(), household_id:"demo-hh" }, payload));
+    indexProjects(); closeProj(); renderSpaceBar(); renderMain(); loadUpcoming(); return;
+  }
+
+  $("pSave").disabled = true;
+  try{
+    if(editingProj){
+      const { error } = await sb.from("projects").update(payload).eq("id", editingProj.id);
+      if(error) throw error;
+    }else{
+      const { error } = await sb.from("projects")
+        .insert(Object.assign({ household_id: myProfile.household_id }, payload));
+      if(error) throw error;
+    }
+    closeProj();
+    await Promise.all([ loadProjects(), loadEvents(), loadUpcoming() ]);
+  }catch(e){
+    msg($("pErr"), e.message || String(e));
+  }finally{
+    $("pSave").disabled = false;
+  }
+};
+
+$("pDel").onclick = async () => {
+  if(!editingProj) return;
+  const n = projEvents(editingProj.id).length;
+  if(!confirm("「"+editingProj.name+"」 프로젝트를 지울까요?\n\n"
+            + (n ? "일정 "+n+"건은 남고 공통으로 옮겨집니다.\n" : "")
+            + "할 일은 함께 지워집니다.")) return;
+
+  if(demo){
+    events.forEach(e => { if(e.project_id === editingProj.id) e.project_id = null; });
+    tasks = tasks.filter(t => t.project_id !== editingProj.id);
+    projects = projects.filter(x => x.id !== editingProj.id);
+    indexProjects(); openProject = null;
+    closeProj(); renderSpaceBar(); renderMain(); loadUpcoming(); return;
+  }
+
+  $("pDel").disabled = true;
+  const { error } = await sb.from("projects").delete().eq("id", editingProj.id);
+  $("pDel").disabled = false;
+  if(error) return msg($("pErr"), error.message);
+  openProject = null;
+  closeProj();
+  await Promise.all([ loadProjects(), loadEvents(), loadUpcoming() ]);
+};
+
+/* ================================================================
    5-c. 메모 — 시각이 없는 것을 적어 두는 곳
    장보기 목록·집 비밀번호·아이 준비물처럼 「언제」가 없는 것.
    ================================================================ */
@@ -1576,6 +2103,26 @@ function noteTitle(body){
 }
 function noteRest(body){
   return (body || "").split("\n").slice(1).join("\n").trim();
+}
+
+function indexProjects(){
+  projById = {};
+  projects.forEach(p => { projById[p.id] = p; });
+}
+
+async function loadProjects(){
+  if(demo){ indexProjects(); renderSpaceBar(); renderMain(); return; }
+  const [pr, tk] = await Promise.all([
+    sb.from("projects").select("*").order("created_at"),
+    sb.from("tasks").select("*").order("sort_order").limit(1000)
+  ]);
+  if(pr.error){ console.error(pr.error); return; }
+  if(tk.error){ console.error(tk.error); }
+  projects = pr.data || [];
+  tasks    = tk.data || [];
+  indexProjects();
+  renderSpaceBar();
+  renderMain();
 }
 
 async function loadNotes(){
@@ -1770,7 +2317,7 @@ function renderSearch(){
               const d = new Date(ev.starts_at);
               const mine = ev.owner_id === me.id;
               const who  = mine ? "" : (members[ev.owner_id] || "배우자");
-              const sub  = [who, ev.location].filter(Boolean).join(" · ");
+              const sub  = [who, projName(ev), ev.location].filter(Boolean).join(" · ");
               return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
                    +   '<div class="rt" style="min-width:74px">'
                    +     (d.getMonth()+1)+"/"+d.getDate()
@@ -2009,7 +2556,16 @@ $("fakeBtn").onclick = async () => {
 /* ================================================================
    7. 일정 모달
    ================================================================ */
-function openModal(ev, dayStr){
+function fillProjectSelect(val){
+  const sel = $("mProject");
+  const act = projects.filter(p => p.status !== "done" || p.id === val);
+  sel.innerHTML = '<option value="">공통 (프로젝트 없음)</option>'
+    + act.map(p => '<option value="'+p.id+'">'
+        + escapeHtml(p.name + " · " + projOwnerLabel(p)) + "</option>").join("");
+  sel.value = val || "";
+}
+
+function openModal(ev, dayStr, presetProject){
   editing = ev || null;
   pendingInbox = null;
   msg($("mErr"), "");
@@ -2026,6 +2582,7 @@ function openModal(ev, dayStr){
     $("mMemo").value  = ev.memo || "";
     $("mVis").value   = ev.visibility || "shared";
     $("mRemind").value = "";
+    fillProjectSelect(ev.project_id || "");
     loadReminder(ev.id);
     if(ev.source !== "manual"){
       $("mSrc").textContent = "이 일정은 " + (SRC_LABEL[ev.source]||ev.source) + "에서 자동으로 만들어졌습니다.";
@@ -2044,6 +2601,8 @@ function openModal(ev, dayStr){
     $("mMemo").value  = "";
     $("mVis").value   = "shared";
     $("mRemind").value = "30";
+    // 프로젝트 화면에서 열었으면 그 프로젝트를, 아니면 보고 있는 공간의 프로젝트를 기본값으로
+    fillProjectSelect(presetProject || "");
   }
   syncAllDay();
   $("mask").classList.add("on");
@@ -2054,6 +2613,7 @@ function openModal(ev, dayStr){
 function openInboxModal(it){
   openModal(null, null);
   pendingInbox = it;
+  fillProjectSelect("");
   $("mTitle").textContent = "확인하고 등록";
   $("mName").value  = it.suggested_title || "";
   $("mPlace").value = it.suggested_location || "";
@@ -2095,6 +2655,7 @@ document.addEventListener("keydown", (e) => {
   if(e.key !== "Escape") return;
   if($("mask").classList.contains("on"))  closeModal();
   if($("nMask").classList.contains("on")) closeNote();
+  if($("pMask").classList.contains("on")) closeProj();
 });
 function closeModal(){
   $("mask").classList.remove("on");
@@ -2114,6 +2675,7 @@ $("mSave").onclick = async () => {
   // ── 둘러보기: 메모리에서만 처리한다 ──
   if(demo){
     const base = {
+      project_id: $("mProject").value || null,
       title:      title,
       starts_at:  start.toISOString(),
       ends_at:    end ? end.toISOString() : null,
@@ -2147,7 +2709,7 @@ $("mSave").onclick = async () => {
   try{
     if(pendingInbox){
       // 대기함 승인 — 일정 생성 + 알람 + 상태 갱신을 서버에서 한 번에
-      const { error } = await sb.rpc("accept_inbox_item", {
+      const { data, error } = await sb.rpc("accept_inbox_item", {
         p_inbox_id:       pendingInbox.id,
         p_title:          title,
         p_starts_at:      start.toISOString(),
@@ -2159,10 +2721,15 @@ $("mSave").onclick = async () => {
         p_offset_minutes: remind
       });
       if(error) throw error;
+      const pid = $("mProject").value || null;
+      if(pid && data){
+        await sb.from("events").update({ project_id: pid }).eq("id", data);
+      }
     }else{
       const payload = {
         household_id: myProfile.household_id,
         owner_id:     me.id,
+        project_id:   $("mProject").value || null,
         title:        title,
         starts_at:    start.toISOString(),
         ends_at:      end ? end.toISOString() : null,
