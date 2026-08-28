@@ -1,0 +1,2190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 브라우저가 옛 화면을 물고 있지 않도록 한다.
+     파일을 고쳤는데 화면이 그대로면 사람이 원인을 찾을 방법이 없다. -->
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>우리 일정</title>
+
+<!--
+  부부 공용 일정관리 — PC 화면
+  파일 하나로 동작한다. 더블클릭하면 브라우저에서 열린다.
+
+  Supabase 라이브러리는 CDN에서 가져온다(인터넷 필요).
+  ES 모듈 대신 UMD 빌드를 쓰는 이유: file:// 로 열었을 때
+  ES 모듈은 브라우저가 막는 경우가 있는데 일반 script 태그는 막히지 않는다.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --bg:#f7f7f8; --panel:#ffffff; --line:#e5e5e8; --line2:#efeff2;
+    --ink:#1a1a1c; --ink2:#5c5c66; --ink3:#95959f;
+    --accent:#3b5bdb; --accent-soft:#edf0fd;
+    --warn:#c92a2a; --warn-soft:#fff0f0;
+    --ok:#2b8a3e; --ok-soft:#ebfbee;
+    --mine:#3b5bdb; --theirs:#9c36b5;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Pretendard","Malgun Gothic","맑은 고딕",system-ui,-apple-system,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  button{font:inherit; cursor:pointer}
+  input,select,textarea{font:inherit; color:inherit}
+
+  /* ---------- 공통 ---------- */
+  .btn{
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+    padding:8px 14px; border-radius:8px; transition:.12s;
+  }
+  .btn:hover{background:#fafafb; border-color:#d5d5da}
+  .btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn-primary:hover{background:#3350c9; border-color:#3350c9}
+  .btn-danger{color:var(--warn); border-color:#f0d0d0}
+  .btn-danger:hover{background:var(--warn-soft)}
+  .btn-sm{padding:5px 10px; font-size:13px; border-radius:7px}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+
+  .field{margin-bottom:14px}
+  .field label{display:block; font-size:12.5px; color:var(--ink2); margin-bottom:5px; font-weight:600}
+  .field input[type=text],.field input[type=email],.field input[type=password],
+  .field input[type=datetime-local],.field input[type=date],
+  .field select,.field textarea{
+    width:100%; padding:9px 11px; border:1px solid var(--line);
+    border-radius:8px; background:#fff;
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{
+    outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .row{display:flex; gap:10px}
+  .row > *{flex:1}
+  .hint{font-size:12.5px; color:var(--ink3); margin-top:6px}
+  .err{background:var(--warn-soft); color:var(--warn); padding:10px 12px;
+       border-radius:8px; font-size:13px; margin-bottom:14px}
+  .ok{background:var(--ok-soft); color:var(--ok); padding:10px 12px;
+      border-radius:8px; font-size:13px; margin-bottom:14px}
+
+  /* ---------- 게이트 화면 (설정/로그인/household) ---------- */
+  .gate{min-height:100%; display:grid; place-items:center; padding:32px}
+  .card{
+    width:100%; max-width:420px; background:var(--panel); padding:28px;
+    border-radius:14px; box-shadow:var(--shadow);
+  }
+  .card h1{margin:0 0 6px; font-size:20px; letter-spacing:-.02em}
+  .card .sub{color:var(--ink2); font-size:13px; margin-bottom:22px}
+  .tabs{display:flex; gap:6px; margin-bottom:20px; background:var(--bg);
+        padding:4px; border-radius:9px}
+  .tabs button{flex:1; border:0; background:transparent; padding:7px;
+               border-radius:6px; color:var(--ink2); font-size:13px}
+  .tabs button.on{background:#fff; color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.06)}
+
+  /* ---------- 앱 레이아웃 ---------- */
+  /* grid-template-columns의 minmax(0,1fr)은 필수다.
+     기본값 1fr은 min-width:auto라서, 자식의 min-content(하단 띠 카드 8장의
+     합계 폭)가 레이아웃 전체를 화면 밖으로 밀어낸다. */
+  #app{display:none; height:100%; grid-template-rows:auto auto 1fr auto;
+       grid-template-columns:minmax(0,1fr)}
+  .demobar{
+    display:none; align-items:center; gap:12px; font-size:13px;
+    background:#fff9db; border-bottom:1px solid #ffe066; color:#846400;
+    padding:9px 18px;
+  }
+  .demobar b{color:#664f00}
+  .demobar .spacer{flex:1}
+  header{
+    background:var(--panel); border-bottom:1px solid var(--line);
+    padding:0 18px; height:58px; display:flex; align-items:center; gap:14px;
+  }
+  header .brand{font-weight:700; letter-spacing:-.02em; font-size:15px}
+  /* 어느 판을 보고 있는지 화면에서 바로 알 수 있게 찍어 둔다.
+     사본이 여기저기 생기면 「내가 만든 것과 다르다」를 가릴 방법이 없다. */
+  header .ver{font-weight:400; font-size:11px; color:var(--ink3); vertical-align:2px}
+  header .nav{display:flex; align-items:center; gap:4px; margin-left:8px}
+  header .month{font-size:16px; font-weight:600; min-width:135px; text-align:center}
+  header .spacer{flex:1}
+  header .who{font-size:12.5px; color:var(--ink2)}
+  .icon-btn{border:1px solid var(--line); background:#fff; width:30px; height:30px;
+            border-radius:7px; display:grid; place-items:center; color:var(--ink2)}
+  .icon-btn:hover{background:#fafafb}
+  .badge{display:inline-grid; place-items:center; min-width:18px; height:18px;
+         padding:0 5px; border-radius:9px; background:var(--warn); color:#fff;
+         font-size:11px; font-weight:700; margin-left:5px}
+
+  main{display:grid; grid-template-columns:minmax(0,1fr) 340px; overflow:hidden}
+
+  /* ── 좁은 화면: 대기함을 감추지 않고 달력 아래로 내린다 ──
+     감추면 이 앱의 핵심 기능이 휴대폰에서 통째로 사라진다.
+     대신 전체 페이지가 세로로 흐르게 바꾼다. */
+  @media (max-width:1000px){
+    html,body{height:auto}
+    #app{height:auto; min-height:100%}
+    main{grid-template-columns:minmax(0,1fr); overflow:visible}
+    .cal{overflow:visible}
+    .inbox{border-left:0; border-top:1px solid var(--line)}
+    .inbox .list{flex:none; overflow:visible}
+  }
+
+  /* ---------- 달력 ---------- */
+  .cal{padding:16px 18px; overflow:auto; min-width:0}
+  .dow{display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:6px}
+  .dow div{text-align:center; font-size:12px; font-weight:600; color:var(--ink2); padding:4px}
+  .dow div:first-child{color:var(--warn)}
+  .dow div:last-child{color:#1971c2}
+  .grid{display:grid; grid-template-columns:repeat(7,1fr);
+        gap:1px; background:var(--line2); border:1px solid var(--line2);
+        border-radius:var(--radius); overflow:hidden}
+  .day{background:#fff; min-height:104px; padding:6px 7px; display:flex;
+       flex-direction:column; gap:3px; cursor:pointer; transition:.1s}
+  .day:hover{background:#fcfcfd}
+  .day.out{background:#fafafb}
+  .day.out .dnum{color:var(--ink3)}
+  .day.today .dnum{background:var(--accent); color:#fff; border-radius:50%;
+                   width:21px; height:21px; display:grid; place-items:center}
+  .dnum{font-size:12.5px; font-weight:600; color:var(--ink2); margin-bottom:1px}
+  .day.sun .dnum{color:var(--warn)}
+  .day.sat .dnum{color:#1971c2}
+  .ev{
+    font-size:11.5px; padding:2px 6px; border-radius:5px; cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    background:var(--accent-soft); color:#2b4acb; border-left:3px solid var(--mine);
+  }
+  .ev.theirs{background:#f8edfb; color:#862e9c; border-left-color:var(--theirs)}
+  .ev.auto::before{content:"⚡ "}
+  .ev:hover{filter:brightness(.97)}
+  .more{font-size:11px; color:var(--ink3); padding-left:3px}
+  .evs{display:flex; flex-direction:column; gap:3px; flex:none; min-height:0}
+
+  /* 넓은 화면에서는 달력이 남는 높이를 꽉 채우게 한다.
+     고정 높이로 두면 6주째가 잘려 나가 그 주 일정이 보이지 않는다.
+     (실제로 8/30 미용실이 잘려 사라졌다) */
+  @media (min-width:1001px){
+    .cal{display:flex; flex-direction:column; overflow:auto}
+    /* flex:1 0 auto — 자리가 남으면 늘어나고, 모자라도 줄지 않는다.
+       줄어들게 두면 .grid 가 자기 안에서 마지막 주를 잘라 버린다(overflow:hidden).
+       모자랄 때는 .cal 이 스크롤한다. */
+    #paneMonth{display:flex; flex-direction:column; flex:1 0 auto}
+    #paneMonth .grid{flex:1 0 auto}
+    #paneMonth .day{min-height:0; overflow:hidden}
+    #paneList{overflow:auto; min-height:0}
+  }
+
+  /* ---------- 보기 전환 줄 + 검색 ---------- */
+  .viewbar{display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap}
+  .seg{display:flex; gap:3px; background:var(--bg); padding:3px; border-radius:9px}
+  .seg button{border:0; background:transparent; padding:6px 14px; border-radius:7px;
+              color:var(--ink2); font-size:13px; white-space:nowrap}
+  .seg button:hover{color:var(--ink)}
+  .seg button.on{background:#fff; color:var(--ink); font-weight:600;
+                 box-shadow:0 1px 2px rgba(0,0,0,.07)}
+  .qwrap{position:relative; flex:1; min-width:150px; max-width:280px}
+  .qwrap input{width:100%; padding:7px 28px 7px 11px; border:1px solid var(--line);
+               border-radius:8px; background:#fff; font-size:13px}
+  .qwrap input:focus{outline:none; border-color:var(--accent);
+                     box-shadow:0 0 0 3px var(--accent-soft)}
+  .qwrap input::-webkit-search-cancel-button{display:none}
+  .qclear{position:absolute; right:4px; top:50%; transform:translateY(-50%);
+          border:0; background:transparent; color:var(--ink3); font-size:17px;
+          width:22px; height:22px; line-height:1; display:none}
+  .qwrap.has .qclear{display:block}
+
+  /* ---------- 목록형 보기 (주간·일별·메모·검색 공용) ---------- */
+  .lst{border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff}
+  .lst + .lst{margin-top:10px}
+  .lst .lh{padding:9px 13px; background:var(--bg); border-bottom:1px solid var(--line2);
+           font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px}
+  .lst .lh .spacer{flex:1}
+  .lst .lh.today{background:var(--accent-soft); color:#2b4acb}
+  .lst .lh.sun{color:var(--warn)}
+  .lst .lh.sat{color:#1971c2}
+  .lst .row{padding:10px 13px; border-bottom:1px solid var(--line2); cursor:pointer;
+            display:flex; gap:11px; align-items:baseline}
+  .lst .row:last-child{border-bottom:0}
+  .lst .row:hover{background:#fafafb}
+  .lst .rt{font-size:12px; font-weight:700; color:var(--mine); min-width:46px; flex:0 0 auto}
+  .lst .row.theirs .rt{color:var(--theirs)}
+  .lst .rn{font-size:13.5px; font-weight:600}
+  .lst .rs{font-size:11.5px; color:var(--ink3)}
+  .lst .rempty{padding:13px; font-size:12.5px; color:var(--ink3); text-align:center}
+  .lst mark{background:#fff3bf; color:inherit; border-radius:2px; padding:0 1px}
+
+  .noteitem{padding:12px 13px; border-bottom:1px solid var(--line2); cursor:pointer}
+  .noteitem:last-child{border-bottom:0}
+  .noteitem:hover{background:#fafafb}
+  .noteitem .nt{font-size:13.5px; font-weight:600; margin-bottom:3px}
+  .noteitem .nb{font-size:12.5px; color:var(--ink2); white-space:pre-wrap;
+                display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+                overflow:hidden}
+  .noteitem .nm{font-size:11px; color:var(--ink3); margin-top:5px}
+  .secttl{font-size:12px; font-weight:700; color:var(--ink2); margin:14px 0 7px}
+  .secttl:first-child{margin-top:0}
+
+  /* ---------- 날짜 목록 (좁은 화면에서만) ---------- */
+  .daysheet{display:none; margin-top:10px; border:1px solid var(--line);
+            border-radius:10px; overflow:hidden; background:#fff}
+  .daysheet.on{display:block}
+  .daysheet .dhead{padding:9px 12px; background:var(--bg); border-bottom:1px solid var(--line2);
+                   font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px}
+  .daysheet .dhead .spacer{flex:1}
+  .daysheet .drow{padding:9px 12px; border-bottom:1px solid var(--line2); cursor:pointer;
+                  display:flex; gap:10px; align-items:baseline}
+  .daysheet .drow:last-child{border-bottom:0}
+  .daysheet .drow:hover{background:#fafafb}
+  .daysheet .dt{font-size:12px; font-weight:700; color:var(--mine);
+                min-width:44px; flex:0 0 auto}
+  .daysheet .drow.theirs .dt{color:var(--theirs)}
+  .daysheet .dn{font-size:13.5px; font-weight:600}
+  .daysheet .dsub{font-size:11.5px; color:var(--ink3)}
+  .daysheet .dempty{padding:16px 12px; font-size:12.5px; color:var(--ink3); text-align:center}
+
+  /* ---------- 휴대폰 ---------- */
+  @media (max-width:720px){
+    .demobar{padding:8px 12px; font-size:12px; flex-wrap:wrap; gap:8px; line-height:1.45}
+    header{height:auto; min-height:52px; padding:8px 12px; gap:8px; flex-wrap:wrap}
+    header .brand{font-size:14px}
+    header .who{display:none}
+    header .nav{margin-left:0}
+    header .month{font-size:14.5px; min-width:94px}
+
+    .cal{padding:10px 12px}
+    .viewbar{gap:8px; margin-bottom:10px}
+    .seg{flex:1 1 100%}
+    .seg button{flex:1; padding:7px 4px; font-size:12.5px}
+    .qwrap{max-width:none; flex:1 1 100%}
+    .dow div{padding:2px; font-size:11px}
+    .day{min-height:54px; padding:5px 3px; align-items:center; gap:4px}
+    .day.today .dnum{width:19px; height:19px}
+    .dnum{font-size:12px; margin-bottom:0}
+
+    /* 칸이 좁아 글자가 들어가지 않는다.
+       점으로 바꾸고, 날짜를 누르면 아래에 그날 목록을 편다. */
+    .evs{flex-direction:row; flex-wrap:wrap; justify-content:center; gap:3px; max-width:100%}
+    .day .ev{
+      width:6px; height:6px; padding:0; border:0; border-left:0; border-radius:50%;
+      font-size:0; line-height:0; color:transparent; overflow:hidden;
+      background:var(--mine);
+    }
+    .day .ev.theirs{background:var(--theirs)}
+    .day .ev.auto::before{content:none}
+    .more{font-size:10px; padding:0}
+    .day.sel{background:var(--accent-soft); box-shadow:inset 0 0 0 2px var(--accent)}
+
+    .upcoming{padding:10px 12px 11px}
+    .inbox h2{padding:13px 12px 10px}
+    .inbox .list{padding:10px 12px}
+    .item .raw{max-height:none}
+    .mask{padding:12px}
+    .modal{max-height:88vh}
+  }
+
+  /* ---------- 확인 대기함 ---------- */
+  .inbox{background:var(--panel); border-left:1px solid var(--line);
+         display:flex; flex-direction:column; overflow:hidden}
+  .inbox h2{margin:0; padding:15px 16px 12px; font-size:14px; font-weight:700;
+            border-bottom:1px solid var(--line2); display:flex; align-items:center}
+  .inbox .list{flex:1; overflow:auto; padding:12px}
+  .inbox .empty{color:var(--ink3); font-size:13px; text-align:center; padding:36px 16px}
+  .item{border:1px solid var(--line); border-radius:10px; padding:11px 12px; margin-bottom:10px}
+  .item .src{font-size:11px; font-weight:700; color:var(--ink3);
+             display:flex; justify-content:space-between; margin-bottom:6px}
+  .item .raw{font-size:12.5px; color:var(--ink2); background:var(--bg);
+             padding:7px 9px; border-radius:6px; margin-bottom:9px;
+             max-height:78px; overflow:auto; white-space:pre-wrap; word-break:break-all}
+  .item .sug{font-size:13px; font-weight:600; margin-bottom:2px}
+  .item .sugtime{font-size:12px; color:var(--accent); margin-bottom:9px}
+  .item .sugtime.none{color:var(--warn)}
+  .item .acts{display:flex; gap:6px}
+  .item .acts .btn{flex:1}
+
+  /* ---------- 다가오는 일정 (하단 띠) ---------- */
+  .upcoming{background:var(--panel); border-top:1px solid var(--line);
+            padding:9px 18px 10px; min-width:0}
+  .upcoming .cap{font-size:12px; font-weight:700; color:var(--ink2);
+                 margin-bottom:6px; display:flex; align-items:center; gap:7px}
+  .upcoming .cap span{font-weight:400; color:var(--ink3)}
+  .strip{display:flex; gap:8px; overflow-x:auto; padding-bottom:3px; min-width:0}
+  .strip::-webkit-scrollbar{height:7px}
+  .strip::-webkit-scrollbar-thumb{background:#dcdce2; border-radius:4px}
+  .uc{
+    flex:0 0 auto; min-width:148px; max-width:230px; background:#fff;
+    border:1px solid var(--line); border-left:3px solid var(--mine);
+    border-radius:9px; padding:6px 11px 7px; cursor:pointer; transition:.1s;
+  }
+  .uc:hover{background:#fafafb; border-color:#d5d5da}
+  .uc.theirs{border-left-color:var(--theirs)}
+  .uc.soon{background:var(--accent-soft); border-color:#ccd6f8}
+  .uc.soon.theirs{background:#f8edfb; border-color:#ecd0f5}
+  .uc .when{font-size:11.5px; font-weight:700; color:var(--accent); margin-bottom:1px}
+  .uc.theirs .when{color:var(--theirs)}
+  .uc .t{font-size:13px; font-weight:600; white-space:nowrap;
+         overflow:hidden; text-overflow:ellipsis}
+  .uc .sub{font-size:11.5px; color:var(--ink3); white-space:nowrap;
+           overflow:hidden; text-overflow:ellipsis; min-height:17px}
+  .upcoming .none{font-size:12.5px; color:var(--ink3); padding:5px 2px 8px}
+
+  /* ---------- 알람 알림 ---------- */
+  .alarm{
+    position:fixed; left:50%; top:18px; transform:translateX(-50%); z-index:80;
+    background:#fff; border:1px solid var(--accent); border-left:5px solid var(--accent);
+    border-radius:12px; box-shadow:0 10px 34px rgba(0,0,0,.18);
+    padding:13px 16px; min-width:270px; max-width:min(420px,92vw); display:none;
+  }
+  .alarm.on{display:block}
+  .alarm .at{font-size:11.5px; font-weight:700; color:var(--accent); margin-bottom:3px}
+  .alarm .an{font-size:15px; font-weight:700; margin-bottom:2px}
+  .alarm .as{font-size:12px; color:var(--ink2); margin-bottom:11px}
+  .alarm .aa{display:flex; justify-content:flex-end}
+
+  /* ---------- 모달 ---------- */
+  .mask{position:fixed; inset:0; background:rgba(20,20,25,.42);
+        display:none; place-items:center; padding:24px; z-index:50}
+  .mask.on{display:grid}
+  .modal{width:100%; max-width:440px; background:#fff; border-radius:14px;
+         box-shadow:var(--shadow); max-height:90vh; overflow:auto}
+  .modal .head{padding:18px 20px 14px; border-bottom:1px solid var(--line2);
+               font-weight:700; font-size:15px}
+  .modal .body{padding:18px 20px}
+  .modal .foot{padding:14px 20px 18px; display:flex; gap:8px; justify-content:flex-end}
+  .modal .foot .left{margin-right:auto}
+  .chk{display:flex; align-items:center; gap:7px; font-size:13px; color:var(--ink2)}
+  .chk input{width:15px; height:15px; accent-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ============ 1. 접속 설정 ============ -->
+<div class="gate" id="gateConfig">
+  <div class="card">
+    <h1>처음 한 번만 설정합니다</h1>
+    <div class="sub">Supabase 대시보드 → Project Settings → API 에서 값을 복사해 붙여넣으세요. 이 PC에만 저장되며 서버로 보내지 않습니다.</div>
+    <div id="cfgErr"></div>
+    <div class="field">
+      <label>Project URL</label>
+      <input type="text" id="cfgUrl" placeholder="https://xxxxxxxx.supabase.co" spellcheck="false">
+      <div class="hint">Supabase 화면의 주소가 <code>/rest/v1/</code> 로 끝나도 그대로 붙여넣으세요. 알아서 떼어 냅니다.</div>
+    </div>
+    <div class="field">
+      <label>anon public key</label>
+      <textarea id="cfgKey" rows="3" placeholder="eyJhbGciOi..." spellcheck="false"></textarea>
+      <div class="hint"><b>anon public</b> 또는 <b>Publishable key</b>(<code>sb_publishable_…</code>)입니다.<br>service_role · Secret key 는 절대 넣지 마세요 — 보안이 통째로 무너집니다.</div>
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="cfgSave">저장하고 시작</button>
+    <div class="hint" style="text-align:center; margin-top:16px">
+      설정하기 전에 어떤 화면인지 보고 싶으시면 —
+      <a href="#" id="demoLink1" style="color:var(--accent); font-weight:600">먼저 둘러보기</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 2. 로그인 ============ -->
+<div class="gate" id="gateAuth" style="display:none">
+  <div class="card">
+    <h1>우리 일정</h1>
+    <div class="sub">부부가 함께 쓰는 일정관리</div>
+    <div class="tabs">
+      <button id="tabIn" class="on">로그인</button>
+      <button id="tabUp">가입</button>
+    </div>
+    <div id="authErr"></div>
+    <div class="field" id="fName" style="display:none">
+      <label>이름</label>
+      <input type="text" id="auName" placeholder="화면에 표시될 이름">
+    </div>
+    <div class="field">
+      <label>이메일</label>
+      <input type="email" id="auEmail" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input type="password" id="auPw" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="auGo">로그인</button>
+    <div class="hint" style="text-align:center; margin-top:14px">
+      <a href="#" id="demoLink2" style="color:var(--accent); font-weight:600">먼저 둘러보기</a>
+      <span style="margin:0 8px; color:var(--line)">|</span>
+      <a href="#" id="cfgReset" style="color:var(--ink3)">접속 설정 다시 하기</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 3. household 만들기 / 합류 ============ -->
+<div class="gate" id="gateHouse" style="display:none">
+  <div class="card">
+    <h1>함께 쓸 공간을 만듭니다</h1>
+    <div class="sub">한 사람이 만들고, 나온 초대코드를 배우자에게 알려주면 됩니다.</div>
+    <div class="tabs">
+      <button id="tabNew" class="on">새로 만들기</button>
+      <button id="tabJoin">초대코드로 합류</button>
+    </div>
+    <div id="hhMsg"></div>
+    <div id="paneNew">
+      <div class="field">
+        <label>이름</label>
+        <input type="text" id="hhName" placeholder="예) 우리집" value="우리집">
+      </div>
+      <button class="btn btn-primary" style="width:100%" id="hhCreate">만들기</button>
+    </div>
+    <div id="paneJoin" style="display:none">
+      <div class="field">
+        <label>초대코드</label>
+        <input type="text" id="hhCode" placeholder="예) A3F7B2C9" spellcheck="false"
+               style="text-transform:uppercase; letter-spacing:.1em; font-weight:600">
+      </div>
+      <button class="btn btn-primary" style="width:100%" id="hhJoin">합류하기</button>
+    </div>
+    <div class="hint" style="text-align:center; margin-top:16px">
+      <a href="#" id="signOut1" style="color:var(--ink3)">로그아웃</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 4. 본 화면 ============ -->
+<div id="app">
+  <div class="demobar" id="demoBar">
+    <span>🔍 <b>둘러보기 중입니다.</b> 화면은 전부 실제로 동작하지만, 저장되지 않습니다 — 새로고침하면 사라집니다.</span>
+    <span class="spacer"></span>
+    <button class="btn btn-sm" id="demoExit">나가서 설정하기</button>
+  </div>
+  <header>
+    <div class="brand">우리 일정 <span class="ver" id="ver">v10</span></div>
+    <div class="nav">
+      <button class="icon-btn" id="prevM" title="이전 달">‹</button>
+      <div class="month" id="monthLabel"></div>
+      <button class="icon-btn" id="nextM" title="다음 달">›</button>
+      <button class="btn btn-sm" id="todayBtn" style="margin-left:6px">오늘</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-sm btn-primary" id="addBtn">+ 일정 추가</button>
+    <div class="who" id="whoLabel"></div>
+    <button class="btn btn-sm" id="linkPhone" title="폰이나 배우자 기기에서 열 수 있는 링크를 만듭니다">폰 연결</button>
+    <button class="btn btn-sm" id="signOut2">로그아웃</button>
+  </header>
+
+  <main>
+    <section class="cal">
+      <div class="viewbar">
+        <div class="seg" id="seg">
+          <button data-v="month" class="on">달력</button>
+          <button data-v="week">주간</button>
+          <button data-v="day">일별</button>
+          <button data-v="notes">메모</button>
+        </div>
+        <div class="qwrap">
+          <input type="search" id="q" placeholder="일정·메모 검색" spellcheck="false" autocomplete="off">
+          <button class="qclear" id="qClear" aria-label="검색어 지우기">×</button>
+        </div>
+      </div>
+
+      <div id="paneMonth">
+        <div class="dow">
+          <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="daysheet" id="daySheet"></div>
+      </div>
+
+      <div id="paneList" style="display:none"></div>
+    </section>
+
+    <aside class="inbox">
+      <h2>확인 대기함 <span class="badge" id="inboxCount" style="display:none">0</span></h2>
+      <div class="list" id="inboxList"></div>
+      <div style="padding:10px 12px; border-top:1px solid var(--line2)">
+        <button class="btn btn-sm" style="width:100%" id="fakeBtn">시험용 후보 넣기</button>
+        <button class="btn btn-sm" style="width:100%; margin-top:6px" id="alarmTestBtn">1분 뒤 알람 시험</button>
+        <div class="hint">안드로이드 앱을 만들기 전에 승인 흐름을 확인하려고 둔 버튼입니다. 2단계가 끝나면 지웁니다.</div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="upcoming">
+    <div class="cap">다가오는 일정 <span id="upCount"></span></div>
+    <div class="strip" id="upStrip"></div>
+  </section>
+</div>
+
+<div class="alarm" id="alarmBox"></div>
+
+<!-- ============ 메모 모달 ============ -->
+<div class="mask" id="nMask">
+  <div class="modal">
+    <div class="head" id="nTitle">메모</div>
+    <div class="body">
+      <div id="nErr"></div>
+      <div class="field">
+        <label>내용 <span style="font-weight:400;color:var(--ink3)">첫 줄이 제목이 됩니다</span></label>
+        <textarea id="nBody" rows="8" placeholder="장보기 목록, 집 비밀번호, 아이 준비물…"></textarea>
+      </div>
+      <div class="hint" id="nMeta"></div>
+    </div>
+    <div class="foot">
+      <button class="btn btn-danger left" id="nDel" style="display:none">삭제</button>
+      <button class="btn" id="nCancel">취소</button>
+      <button class="btn btn-primary" id="nSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 일정 모달 ============ -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <div class="head" id="mTitle">일정</div>
+    <div class="body">
+      <div id="mErr"></div>
+      <div class="field">
+        <label>제목</label>
+        <input type="text" id="mName" placeholder="무엇을 하나요?">
+      </div>
+      <div class="field">
+        <label class="chk"><input type="checkbox" id="mAllDay"> 종일</label>
+      </div>
+      <div class="row">
+        <div class="field"><label>시작</label><input type="datetime-local" id="mStart"></div>
+        <div class="field"><label>종료 <span style="font-weight:400;color:var(--ink3)">(선택)</span></label><input type="datetime-local" id="mEnd"></div>
+      </div>
+      <div class="field">
+        <label>장소</label>
+        <input type="text" id="mPlace" placeholder="어디에서?">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>알람</label>
+          <select id="mRemind">
+            <option value="">없음</option>
+            <option value="0">정각</option>
+            <option value="10">10분 전</option>
+            <option value="30" selected>30분 전</option>
+            <option value="60">1시간 전</option>
+            <option value="180">3시간 전</option>
+            <option value="1440">하루 전</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>공개</label>
+          <select id="mVis">
+            <option value="shared">둘 다 봄</option>
+            <option value="private">나만 봄</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>메모</label>
+        <textarea id="mMemo" rows="2"></textarea>
+      </div>
+      <div class="hint" id="mSrc"></div>
+    </div>
+    <div class="foot">
+      <button class="btn btn-danger left" id="mDel" style="display:none">삭제</button>
+      <button class="btn" id="mCancel">취소</button>
+      <button class="btn btn-primary" id="mSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================================================================
+   상태
+   ================================================================ */
+let sb = null;                 // supabase client
+let demo = false;              // 둘러보기 모드 — 서버에 닿지 않고 메모리에서만 돈다
+let me = null;                 // { id, email }
+let myProfile = null;          // { id, household_id, display_name }
+let household = null;          // { id, name, invite_code }
+let members = {};              // profile_id -> display_name
+let viewMonth = startOfMonth(new Date());
+let events = [];               // 현재 조회 범위의 일정
+let upcoming = [];             // 하단 띠 — 지금부터 앞으로 (달력 범위와 무관)
+let inbox = [];                // pending 후보
+let view = "month";            // month | week | day | notes | search
+let anchor = new Date();       // 주간·일별 보기의 기준 날짜
+let notes = [];                // 메모
+let searchQ = "";              // 검색어
+let searchRes = { events:[], notes:[] };
+let reminders = [];            // 알람 (event_id, offset_minutes, enabled)
+let editingNote = null;        // 편집 중인 메모 (null이면 새로 쓰기)
+let selectedDay = null;        // 좁은 화면에서 펼쳐 놓은 날짜 (YYYY-MM-DD)
+let editing = null;            // 편집 중인 event (null이면 새로 만들기)
+let pendingInbox = null;       // 대기함에서 승인 중인 항목
+let channel = null;
+
+const $  = (id) => document.getElementById(id);
+const KEY_URL = "wj.supabase.url";
+const KEY_KEY = "wj.supabase.key";
+
+/* ================================================================
+   날짜 유틸 — 전부 「PC의 현지 시간」 기준.
+   두 사용자 모두 한국에 있으므로 시간대 변환을 하지 않는다.
+   ================================================================ */
+function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function pad(n){ return String(n).padStart(2,"0"); }
+
+/** 'YYYY-MM-DD' — 달력 칸을 식별하는 키 */
+function dayKey(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+
+/** Date → <input type="datetime-local"> 값 */
+function toInput(d){
+  return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())
+       +"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+}
+/** <input type="datetime-local"> 값 → Date (현지 시간으로 해석) */
+function fromInput(s){
+  if(!s) return null;
+  const [dt,tm] = s.split("T");
+  const [y,m,d] = dt.split("-").map(Number);
+  const [hh,mm] = tm.split(":").map(Number);
+  return new Date(y, m-1, d, hh, mm);
+}
+function hhmm(d){ return pad(d.getHours())+":"+pad(d.getMinutes()); }
+
+/* ================================================================
+   화면 전환
+   ================================================================ */
+function show(which){
+  $("gateConfig").style.display = which==="config" ? "grid" : "none";
+  $("gateAuth").style.display   = which==="auth"   ? "grid" : "none";
+  $("gateHouse").style.display  = which==="house"  ? "grid" : "none";
+  $("app").style.display        = which==="app"    ? "grid" : "none";
+}
+function msg(el, text, kind){
+  el.innerHTML = text ? '<div class="'+(kind||"err")+'">'+escapeHtml(text)+"</div>" : "";
+}
+function escapeHtml(s){
+  return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
+/* ================================================================
+   1. 접속 설정
+   ================================================================ */
+function boot(){
+  // 주소 끝에 ?demo 를 붙이면 곧바로 둘러보기로 연다 (화면을 보여줄 때 쓴다)
+  if(new URLSearchParams(location.search).has("demo")){ startDemo(); return; }
+
+  applyCfgLink();                    // #cfg= 로 들어온 접속 정보를 먼저 받는다
+
+  const url = localStorage.getItem(KEY_URL);
+  const key = localStorage.getItem(KEY_KEY);
+  if(!url || !key){ show("config"); return; }
+  try{
+    sb = window.supabase.createClient(url, key);
+  }catch(e){
+    msg($("cfgErr"), "설정이 잘못되었습니다: "+e.message);
+    show("config"); return;
+  }
+  checkSession();
+}
+
+/**
+ * Supabase 화면은 주소를 `https://xxxx.supabase.co/rest/v1/` 로 보여준다.
+ * 사람이 뒷부분을 떼어 내기를 기대하지 않는다 — 붙여 넣은 그대로 받아 정리한다.
+ */
+function normalizeSupabaseUrl(raw){
+  let u = String(raw || "").trim();
+  u = u.replace(/^["'<\s]+|["'>\s]+$/g, "");        // 따옴표·공백
+  if(u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+  u = u.replace(/\/(rest|auth|storage|realtime|functions)\/v\d+\/?$/i, "");
+  u = u.replace(/\/+$/, "");
+  return u;
+}
+
+$("cfgSave").onclick = () => {
+  const url = normalizeSupabaseUrl($("cfgUrl").value);
+  const key = $("cfgKey").value.trim();
+  if(!/^https:\/\/[^\/\s]+\.supabase\.(co|in)$/.test(url)){
+    return msg($("cfgErr"), "Project URL 형식이 아닙니다. https://xxxx.supabase.co 형태여야 합니다.");
+  }
+  if(key.length < 40){
+    return msg($("cfgErr"), "anon key가 너무 짧습니다. 값을 다시 확인해 주세요.");
+  }
+  localStorage.setItem(KEY_URL, url);
+  localStorage.setItem(KEY_KEY, key);
+  msg($("cfgErr"), "");
+  boot();
+};
+/**
+ * 폰·배우자 기기 연결 링크
+ *  긴 키를 작은 화면에서 손으로 치는 것은 현실적이지 않다.
+ *  주소 뒤에 #cfg=... 로 접속 정보를 실어 보내고, 받는 쪽이 저장한 뒤 주소에서 지운다.
+ *  실리는 것은 Project URL 과 publishable(anon) 키뿐이다 — 둘 다 공개돼도 되는 값이고,
+ *  실제 데이터는 로그인과 RLS 가 막는다. 그래도 아무 데나 올리지는 않는다.
+ */
+function makeCfgLink(){
+  const url = localStorage.getItem(KEY_URL) || "";
+  const key = localStorage.getItem(KEY_KEY) || "";
+  if(!url || !key) return null;
+  const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ u:url, k:key }))));
+  return location.origin + location.pathname + "#cfg=" + payload;
+}
+
+function applyCfgLink(){
+  const m = /[#&]cfg=([^&]+)/.exec(location.hash || "");
+  if(!m) return false;
+  try{
+    const o = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+    if(o && o.u && o.k){
+      localStorage.setItem(KEY_URL, o.u);
+      localStorage.setItem(KEY_KEY, o.k);
+    }
+  }catch(e){ /* 깨진 링크는 무시하고 평소대로 설정 화면을 띄운다 */ }
+  // 주소창에 접속 정보를 남겨 두지 않는다
+  try{ history.replaceState(null, "", location.pathname + location.search); }
+  catch(e){ location.hash = ""; }
+  return true;
+}
+
+$("linkPhone").onclick = () => {
+  if(demo){
+    alert("둘러보기 중에는 만들 수 없습니다.\n실제 계정으로 로그인한 뒤 눌러주세요.");
+    return;
+  }
+  const link = makeCfgLink();
+  if(!link){ alert("접속 정보가 없습니다."); return; }
+  if(/^file:/i.test(location.protocol)){
+    alert("이 파일은 아직 PC 안에만 있어서 폰에서 열 수 없습니다.\n"
+        + "먼저 인터넷에 올린 뒤 그 주소에서 이 버튼을 눌러주세요.");
+    return;
+  }
+  const say = "이 링크를 폰이나 배우자에게 보내세요.\n"
+            + "열기만 하면 설정이 끝나고 로그인 화면이 나옵니다.\n\n"
+            + "카톡·문자로 보내도 되지만, 공개된 곳에는 올리지 마세요.";
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link)
+      .then(() => alert("링크를 복사했습니다.\n\n" + say))
+      .catch(() => prompt(say, link));
+  }else{
+    prompt(say, link);
+  }
+};
+
+$("cfgReset").onclick = (e) => {
+  e.preventDefault();
+  localStorage.removeItem(KEY_URL); localStorage.removeItem(KEY_KEY);
+  location.reload();
+};
+
+/* ================================================================
+   2. 로그인 / 가입
+   ================================================================ */
+let authMode = "in";
+$("tabIn").onclick = () => setAuthMode("in");
+$("tabUp").onclick = () => setAuthMode("up");
+function setAuthMode(m){
+  authMode = m;
+  $("tabIn").classList.toggle("on", m==="in");
+  $("tabUp").classList.toggle("on", m==="up");
+  $("fName").style.display = m==="up" ? "block" : "none";
+  $("auGo").textContent = m==="up" ? "가입하기" : "로그인";
+  $("auPw").setAttribute("autocomplete", m==="up" ? "new-password" : "current-password");
+  msg($("authErr"), "");
+}
+
+$("auGo").onclick = async () => {
+  const email = $("auEmail").value.trim();
+  const pw    = $("auPw").value;
+  const name  = $("auName").value.trim();
+  if(!email || !pw) return msg($("authErr"), "이메일과 비밀번호를 입력해 주세요.");
+  if(authMode==="up" && pw.length < 6) return msg($("authErr"), "비밀번호는 6자 이상이어야 합니다.");
+
+  $("auGo").disabled = true;
+  try{
+    if(authMode==="up"){
+      const { error } = await sb.auth.signUp({
+        email, password: pw,
+        options:{ data:{ display_name: name || email.split("@")[0] } }
+      });
+      if(error) throw error;
+      // 이메일 확인이 켜져 있으면 세션이 바로 생기지 않는다.
+      const { data:{ session } } = await sb.auth.getSession();
+      if(!session){
+        msg($("authErr"), "가입 확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 로그인해 주세요.", "ok");
+        setAuthMode("in");
+        return;
+      }
+    }else{
+      const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+      if(error) throw error;
+    }
+    await checkSession();
+  }catch(e){
+    msg($("authErr"), translateAuthError(e.message));
+  }finally{
+    $("auGo").disabled = false;
+  }
+};
+
+function translateAuthError(m){
+  if(/Invalid login credentials/i.test(m)) return "이메일 또는 비밀번호가 맞지 않습니다.";
+  if(/User already registered/i.test(m))   return "이미 가입된 이메일입니다. 로그인해 주세요.";
+  if(/Email not confirmed/i.test(m))       return "메일 확인이 아직 안 되었습니다. 받은 메일의 링크를 눌러 주세요.";
+  if(/Failed to fetch/i.test(m))           return "서버에 닿지 못했습니다. 인터넷 연결과 Project URL을 확인해 주세요.";
+  return m;
+}
+
+async function signOut(){
+  if(demo){ location.reload(); return; }
+  if(channel){ try{ await sb.removeChannel(channel); }catch(e){} channel = null; }
+  await sb.auth.signOut();
+  me = myProfile = household = null;
+  show("auth");
+}
+$("signOut1").onclick = (e) => { e.preventDefault(); signOut(); };
+$("signOut2").onclick = () => signOut();
+
+/* ================================================================
+   3. 세션 확인 → household 확인 → 앱 진입
+   ================================================================ */
+async function checkSession(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ show("auth"); return; }
+  me = session.user;
+
+  const { data:prof, error } = await sb
+    .from("profiles").select("*").eq("id", me.id).maybeSingle();
+
+  if(error){ msg($("authErr"), "프로필 조회 실패: "+error.message); show("auth"); return; }
+  if(!prof){
+    // 트리거가 아직 안 돌았거나 스키마가 안 깔린 경우
+    msg($("authErr"), "프로필이 없습니다. 01_schema.sql 을 실행했는지 확인해 주세요.");
+    show("auth"); return;
+  }
+  myProfile = prof;
+
+  if(!prof.household_id){ show("house"); return; }
+  await enterApp();
+}
+
+/* ---------- household 만들기 / 합류 ---------- */
+$("tabNew").onclick  = () => switchHouseTab(true);
+$("tabJoin").onclick = () => switchHouseTab(false);
+function switchHouseTab(isNew){
+  $("tabNew").classList.toggle("on", isNew);
+  $("tabJoin").classList.toggle("on", !isNew);
+  $("paneNew").style.display  = isNew ? "block" : "none";
+  $("paneJoin").style.display = isNew ? "none" : "block";
+  msg($("hhMsg"), "");
+}
+
+$("hhCreate").onclick = async () => {
+  const name = $("hhName").value.trim() || "우리집";
+  $("hhCreate").disabled = true;
+  const { data, error } = await sb.rpc("create_household", { p_name: name });
+  $("hhCreate").disabled = false;
+  if(error) return msg($("hhMsg"), error.message);
+  const code = Array.isArray(data) ? data[0].invite_code : data.invite_code;
+  msg($("hhMsg"), "만들었습니다. 초대코드는 "+code+" 입니다. 배우자에게 알려주세요.", "ok");
+  setTimeout(checkSession, 1600);
+};
+
+$("hhJoin").onclick = async () => {
+  const code = $("hhCode").value.trim().toUpperCase();
+  if(!code) return msg($("hhMsg"), "초대코드를 입력해 주세요.");
+  $("hhJoin").disabled = true;
+  const { error } = await sb.rpc("join_household", { p_code: code });
+  $("hhJoin").disabled = false;
+  if(error) return msg($("hhMsg"), error.message);
+  await checkSession();
+};
+
+/* ================================================================
+   3-b. 둘러보기 — 설정·로그인 없이 화면 안을 먼저 본다
+   서버에 한 번도 닿지 않는다. 모든 것이 이 브라우저 메모리에서만 돈다.
+   ================================================================ */
+const DEMO_ME = "demo-me", DEMO_SP = "demo-sp";
+
+function startDemo(){
+  demo = true;
+  me        = { id: DEMO_ME, email: "demo@local" };
+  myProfile = { id: DEMO_ME, household_id: "demo-hh", display_name: "유미" };
+  household = { id: "demo-hh", name: "우리집", invite_code: "DEMO2027" };
+  members   = { [DEMO_ME]:"유미", [DEMO_SP]:"남편" };
+  viewMonth = startOfMonth(new Date());
+  anchor    = new Date();
+  events    = demoEvents();
+  inbox     = demoInbox();
+  notes     = demoNotes();
+
+  $("whoLabel").textContent = "우리집 · 유미";
+  $("demoBar").style.display = "flex";
+  show("app");
+  syncViewUI();
+  renderMain();
+  renderInbox();
+  loadUpcoming();
+}
+
+/** 오늘을 기준으로 표본 일정을 만든다 — 언제 열어도 살아 있어 보이도록 */
+function demoEvents(){
+  const at = (dayOffset, h, m) => {
+    const d = new Date(); d.setDate(d.getDate()+dayOffset); d.setHours(h, m||0, 0, 0);
+    return d.toISOString();
+  };
+  let n = 0;
+  const mk = (o) => Object.assign({ id:"demo-e"+(++n), all_day:false, source:"manual",
+                                    ends_at:null, location:null, memo:null,
+                                    visibility:"shared" }, o);
+  return [
+    mk({ owner_id:DEMO_ME, title:"부모님 저녁 식사", starts_at:at(-2,18,0), location:"본가" }),
+    mk({ owner_id:DEMO_ME, title:"팀 회의",         starts_at:at(0,9,0) }),
+    mk({ owner_id:DEMO_SP, title:"저녁 약속",        starts_at:at(0,19,30), source:"kakao" }),
+    mk({ owner_id:DEMO_ME, title:"서울내과의원 진료", starts_at:at(1,15,0),
+         source:"sms", location:"서울내과의원" }),
+    mk({ owner_id:DEMO_SP, title:"미용실",          starts_at:at(3,11,0) }),
+    mk({ owner_id:DEMO_ME, title:"결혼기념일",       starts_at:at(3,0,0), all_day:true }),
+    mk({ owner_id:DEMO_SP, title:"자동차 정기점검",   starts_at:at(6,14,0), source:"email" }),
+    mk({ owner_id:DEMO_ME, title:"건강검진",         starts_at:at(8,8,30),
+         source:"sms", visibility:"private", memo:"공복 유지" }),
+    mk({ owner_id:DEMO_ME, title:"영화",            starts_at:at(10,20,0) }),
+    mk({ owner_id:DEMO_SP, title:"남편 휴가",        starts_at:at(13,0,0), all_day:true })
+  ];
+}
+
+/** 확인 대기함 표본 — 세 가지 경우를 일부러 섞었다 */
+function demoInbox(){
+  const at = (dayOffset, h, m) => {
+    const d = new Date(); d.setDate(d.getDate()+dayOffset); d.setHours(h, m||0, 0, 0);
+    return d.toISOString();
+  };
+  const dm = new Date(); dm.setDate(dm.getDate()+5);
+  return [
+    { id:"demo-i1", source:"sms", sender:"1588-1234",
+      raw_text:"[Web발신]\n○○치과 예약 안내입니다.\n"
+              +(dm.getMonth()+1)+"월 "+dm.getDate()+"일 오후 2시 30분 내원 예정입니다.\n"
+              +"변경을 원하시면 회신 주세요.",
+      captured_at:at(0,8,12),
+      suggested_title:"○○치과 진료", suggested_starts_at:at(5,14,30),
+      suggested_location:"○○치과", extractor:"rule", confidence:0.92 },
+
+    { id:"demo-i2", source:"kakao", sender:"김서연",
+      raw_text:"언니 다음주 목요일 저녁 7시에 강남역에서 보는 거 맞지?",
+      captured_at:at(0,7,40),
+      suggested_title:"강남역 약속", suggested_starts_at:at(7,19,0),
+      suggested_location:"강남역", extractor:"rule", confidence:0.71 },
+
+    // 시각을 못 찾은 경우 — 사람이 직접 정해야 하는 흐름을 보여준다
+    { id:"demo-i3", source:"sms", sender:"관리사무소",
+      raw_text:"[안내] 이번 주 중 소방시설 점검이 있을 예정이오니 세대 협조 부탁드립니다.",
+      captured_at:at(-1,17,5),
+      suggested_title:"소방시설 점검", suggested_starts_at:null,
+      suggested_location:null, extractor:"rule", confidence:0.35 }
+  ];
+}
+
+/** 메모 표본 — 「언제」가 없는 것들 */
+function demoNotes(){
+  const ago = (min) => new Date(Date.now() - min*60000).toISOString();
+  return [
+    { id:"demo-m1", household_id:"demo-hh", author_id:DEMO_ME,
+      body:"장보기\n우유 2개\n계란 한 판\n식빵\n세제 (마트 2층)",
+      created_at:ago(180), updated_at:ago(35) },
+    { id:"demo-m2", household_id:"demo-hh", author_id:DEMO_SP,
+      body:"보일러 A/S 번호\n1588-0000 (기사님 김○○)\n모델명 뒤판에 적혀 있음",
+      created_at:ago(2880), updated_at:ago(2880) },
+    { id:"demo-m3", household_id:"demo-hh", author_id:DEMO_ME,
+      body:"아이 준비물\n실내화 새로 사기\n체육복 이름표 달기",
+      created_at:ago(7200), updated_at:ago(5400) }
+  ];
+}
+
+$("demoLink1").onclick = (e) => { e.preventDefault(); startDemo(); };
+$("demoLink2").onclick = (e) => { e.preventDefault(); startDemo(); };
+$("demoExit").onclick  = () => location.reload();
+
+/* ================================================================
+   4. 앱 진입
+   ================================================================ */
+async function enterApp(){
+  const { data:hh } = await sb.from("households")
+    .select("*").eq("id", myProfile.household_id).maybeSingle();
+  household = hh;
+
+  const { data:ms } = await sb.from("profiles")
+    .select("id, display_name").eq("household_id", myProfile.household_id);
+  members = {};
+  (ms||[]).forEach(p => { members[p.id] = p.display_name; });
+
+  $("whoLabel").textContent =
+    (household ? household.name+" · " : "") + (myProfile.display_name||"") +
+    (household ? "  (초대코드 "+household.invite_code+")" : "");
+
+  show("app");
+  syncViewUI();
+  await Promise.all([ loadEvents(), loadInbox(), loadUpcoming(), loadNotes() ]);
+  subscribe();
+}
+
+/* ---------- 실시간 구독 ---------- */
+function subscribe(){
+  if(demo) return;                       // 둘러보기는 서버에 닿지 않는다
+  if(channel) { try{ sb.removeChannel(channel); }catch(e){} }
+  const hh = myProfile.household_id;
+  channel = sb.channel("wj-"+hh)
+    .on("postgres_changes",
+        { event:"*", schema:"public", table:"events", filter:"household_id=eq."+hh },
+        () => { loadEvents(); loadUpcoming(); })
+    .on("postgres_changes",
+        { event:"*", schema:"public", table:"inbox_items", filter:"household_id=eq."+hh },
+        () => loadInbox())
+    .on("postgres_changes",
+        { event:"*", schema:"public", table:"notes", filter:"household_id=eq."+hh },
+        () => loadNotes())
+    .subscribe();
+}
+
+/* ================================================================
+   5. 일정 불러오기 · 그리기
+   ================================================================ */
+/** 지금 보기가 필요로 하는 날짜 범위 */
+function currentRange(){
+  if(view === "week"){ const s = weekStart(anchor); return [s, addDays(s, 7)]; }
+  if(view === "day"){  const s = dayStart(anchor);  return [s, addDays(s, 1)]; }
+  // 달력은 6주가 보이므로 앞뒤로 넉넉히 잡는다
+  return [ addDays(viewMonth, -10), addDays(addMonths(viewMonth, 1), 10) ];
+}
+function weekStart(d){ const s = dayStart(d); return addDays(s, -s.getDay()); }  // 일요일 시작
+function dayStart(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+
+async function loadEvents(){
+  if(demo){ renderMain(); return; }
+  const [from, to] = currentRange();
+  const { data, error } = await sb.from("events")
+    .select("*")
+    .gte("starts_at", from.toISOString())
+    .lt ("starts_at", to.toISOString())
+    .order("starts_at");
+  if(error){ console.error(error); return; }
+  events = data || [];
+  renderMain();
+}
+
+/* ================================================================
+   5-a. 보기 전환 — 달력 · 주간 · 일별 · 메모 (+ 검색)
+   ================================================================ */
+function setView(v){
+  if(view === v && v !== "search") return;
+  view = v;
+  selectedDay = null;
+  if(v !== "search"){ searchQ = ""; $("q").value = ""; syncQ(); }
+  syncViewUI();
+  if(v === "week" || v === "day" || v === "month") loadEvents();
+  else renderMain();
+}
+
+function syncViewUI(){
+  $("seg").querySelectorAll("button").forEach(b =>
+    b.classList.toggle("on", b.dataset.v === view));
+
+  const isCal = (view === "month" || view === "week" || view === "day");
+  // "" 로 비워 둔다 — 인라인 값을 넣으면 위의 flex 규칙이 덮인다
+  $("paneMonth").style.display = (view === "month") ? "" : "none";
+  $("paneList").style.display  = (view === "month") ? "none" : "";
+
+  // 이동 화살표·오늘 버튼은 날짜가 있는 보기에서만 뜻이 있다
+  ["prevM","nextM","todayBtn"].forEach(id => $(id).style.display = isCal ? "" : "none");
+  $("monthLabel").textContent = navLabel();
+}
+
+function navLabel(){
+  if(view === "month") return viewMonth.getFullYear()+"년 "+(viewMonth.getMonth()+1)+"월";
+  if(view === "week"){
+    const s = weekStart(anchor), e = addDays(s, 6);
+    return (s.getMonth()+1)+"/"+s.getDate()+" ~ "+(e.getMonth()+1)+"/"+e.getDate();
+  }
+  if(view === "day")
+    return (anchor.getMonth()+1)+"월 "+anchor.getDate()+"일 ("+DOW_KO[anchor.getDay()]+")";
+  if(view === "notes")  return "메모";
+  return "검색";
+}
+
+function shift(dir){
+  if(view === "month") viewMonth = addMonths(viewMonth, dir);
+  else if(view === "week") anchor = addDays(anchor, 7*dir);
+  else if(view === "day")  anchor = addDays(anchor, dir);
+  else return;
+  selectedDay = null;
+  $("monthLabel").textContent = navLabel();
+  loadEvents();
+}
+
+/** 지금 보기에 맞는 화면을 그린다 */
+function renderMain(){
+  $("monthLabel").textContent = navLabel();
+  if(view === "month")  return renderCalendar();
+  if(view === "week")   return renderWeek();
+  if(view === "day")    return renderDay();
+  if(view === "notes")  return renderNotes();
+  if(view === "search") return renderSearch();
+}
+
+/* ---------- 하루치 줄 묶음 (주간·일별 공용) ---------- */
+function dayRows(list){
+  if(!list.length) return '<div class="rempty">일정이 없습니다.</div>';
+  return list
+    .slice()
+    .sort((a,b) => {
+      if(a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+      return new Date(a.starts_at) - new Date(b.starts_at);
+    })
+    .map(ev => {
+      const mine = ev.owner_id === me.id;
+      const who  = mine ? "" : (members[ev.owner_id] || "배우자");
+      const sub  = [who, ev.location].filter(Boolean).join(" · ");
+      return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
+           +   '<div class="rt">'+(ev.all_day ? "종일" : hhmm(new Date(ev.starts_at)))+"</div>"
+           +   "<div>"
+           +     '<div class="rn">'+escapeHtml(ev.title)+"</div>"
+           +     (sub ? '<div class="rs">'+escapeHtml(sub)+"</div>" : "")
+           +   "</div>"
+           + "</div>";
+    }).join("");
+}
+
+function wireEventRows(root){
+  root.querySelectorAll("[data-ev]").forEach(el => {
+    el.onclick = () => {
+      const ev = events.find(x => x.id === el.dataset.ev)
+              || searchRes.events.find(x => x.id === el.dataset.ev);
+      if(ev) openModal(ev);
+    };
+  });
+}
+
+/* ---------- 주간 보기: 7일을 세로로 ----------
+   375px에서 7칸 가로는 한 칸이 50px이라 읽히지 않는다. 세로로 편다. */
+function renderWeek(){
+  const s = weekStart(anchor);
+  const tk = dayKey(new Date());
+  let html = "";
+  for(let i=0; i<7; i++){
+    const d = addDays(s, i), k = dayKey(d);
+    const list = events.filter(ev => dayKey(new Date(ev.starts_at)) === k);
+    const cls = ["lh"];
+    if(k === tk) cls.push("today");
+    else if(d.getDay() === 0) cls.push("sun");
+    else if(d.getDay() === 6) cls.push("sat");
+    html += '<div class="lst">'
+         +    '<div class="'+cls.join(" ")+'">'
+         +      (d.getMonth()+1)+"월 "+d.getDate()+"일 ("+DOW_KO[d.getDay()]+")"
+         +      (k === tk ? " · 오늘" : "")
+         +      '<span class="spacer"></span>'
+         +      '<button class="btn btn-sm" data-add="'+k+'">+</button>'
+         +    "</div>"
+         +    dayRows(list)
+         + "</div>";
+  }
+  $("paneList").innerHTML = html;
+  wireEventRows($("paneList"));
+  $("paneList").querySelectorAll("[data-add]").forEach(b =>
+    b.onclick = (e) => { e.stopPropagation(); openModal(null, b.dataset.add); });
+}
+
+/* ---------- 일별 보기 ---------- */
+function renderDay(){
+  const k = dayKey(anchor);
+  const list = events.filter(ev => dayKey(new Date(ev.starts_at)) === k);
+  const isToday = k === dayKey(new Date());
+  $("paneList").innerHTML =
+      '<div class="lst">'
+    +   '<div class="lh'+(isToday?" today":"")+'">'
+    +     (anchor.getMonth()+1)+"월 "+anchor.getDate()+"일 ("+DOW_KO[anchor.getDay()]+")"
+    +     (isToday ? " · 오늘" : "")
+    +     '<span class="spacer"></span>'
+    +     '<button class="btn btn-sm btn-primary" data-add="'+k+'">+ 추가</button>'
+    +   "</div>"
+    +   dayRows(list)
+    + "</div>";
+  wireEventRows($("paneList"));
+  $("paneList").querySelectorAll("[data-add]").forEach(b =>
+    b.onclick = () => openModal(null, b.dataset.add));
+}
+
+function renderCalendar(){
+  $("monthLabel").textContent = viewMonth.getFullYear()+"년 "+(viewMonth.getMonth()+1)+"월";
+
+  // 그 달 1일이 속한 주의 일요일부터 42칸
+  const first = new Date(viewMonth);
+  const start = addDays(first, -first.getDay());
+  const todayKey = dayKey(new Date());
+
+  // 날짜별로 일정을 모은다
+  const byDay = {};
+  events.forEach(ev => {
+    const k = dayKey(new Date(ev.starts_at));
+    (byDay[k] = byDay[k] || []).push(ev);
+  });
+
+  // 하루 안에서 종일 일정을 먼저, 나머지는 시각순으로 세운다.
+  // 서버의 order()에 기대지 않고 여기서 다시 세우는 이유:
+  // 정렬을 다른 곳에 맡기면 그곳이 바뀔 때 화면이 조용히 뒤죽박죽이 된다.
+  Object.keys(byDay).forEach(k => {
+    byDay[k].sort((a, b) => {
+      if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+      return new Date(a.starts_at) - new Date(b.starts_at);
+    });
+  });
+
+  // 그 달에 실제로 필요한 주 수만큼만 그린다.
+  // 늘 6주를 그리면 빈 줄 하나가 다른 줄의 높이를 빼앗는다.
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()+1, 0).getDate();
+  const weeks = Math.ceil((first.getDay() + daysInMonth) / 7);
+  $("grid").style.gridTemplateRows = "repeat("+weeks+", minmax(104px,1fr))";
+
+  const cells = [];
+  for(let i=0; i<weeks*7; i++){
+    const d = addDays(start, i);
+    const k = dayKey(d);
+    const dow = d.getDay();
+    const cls = ["day"];
+    if(d.getMonth() !== viewMonth.getMonth()) cls.push("out");
+    if(k === todayKey) cls.push("today");
+    if(dow === 0) cls.push("sun");
+    if(dow === 6) cls.push("sat");
+
+    // 전부 그려 두고, 몇 건까지 보일지는 fitMonthCells()가 칸 높이를 재서 정한다.
+    // 고정 개수로 자르면 창 높이가 달라질 때마다 잘리거나 빈다.
+    const list = byDay[k] || [];
+
+    if(k === selectedDay) cls.push("sel");
+
+    cells.push(
+      '<div class="'+cls.join(" ")+'" data-day="'+k+'">'
+      + '<div class="dnum">'+d.getDate()+"</div>"
+      + '<div class="evs">'
+      + list.map(ev => {
+          const mine = ev.owner_id === me.id;
+          const auto = ev.source !== "manual";
+          const label = (ev.all_day ? "" : hhmm(new Date(ev.starts_at))+" ") + ev.title;
+          const who = mine ? "" : (members[ev.owner_id] || "배우자")+" · ";
+          return '<div class="ev'+(mine?"":" theirs")+(auto?" auto":"")+'" '
+               + 'data-ev="'+ev.id+'" title="'+escapeHtml(who+label)+'">'
+               + escapeHtml(label)+"</div>";
+        }).join("")
+      + "</div>"
+      + '<div class="more" style="display:none"></div>'
+      + "</div>"
+    );
+  }
+  $("grid").innerHTML = cells.join("");
+
+  if(isNarrow()){
+    // 휴대폰: 칸에는 점만 찍혀 있으므로 날짜를 눌러 아래 목록을 편다
+    $("grid").querySelectorAll(".day").forEach(el => {
+      el.onclick = () => openDay(el.dataset.day);
+    });
+  }else{
+    // 넓은 화면: 빈 칸은 새 일정, 일정 글자는 그 일정 열기
+    $("grid").querySelectorAll(".day").forEach(el => {
+      el.onclick = (e) => {
+        if(e.target.classList.contains("ev")) return;
+        openModal(null, el.dataset.day);
+      };
+    });
+    $("grid").querySelectorAll(".ev").forEach(el => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const ev = events.find(x => x.id === el.dataset.ev);
+        if(ev) openModal(ev);
+      };
+    });
+  }
+
+  fitMonthCells();
+  renderDaySheet();
+}
+
+/**
+ * 칸 높이를 실측해 몇 건까지 보일지 정하고, 넘치는 만큼은 「+N건」으로 접는다.
+ * 고정 개수(예전의 4건)로 자르면 창 높이가 달라질 때마다 잘리거나 빈다.
+ * 넘침은 값이 아니라 배치라서 값 검증으로는 잡히지 않는다 — 그려 놓고 재야 한다.
+ */
+function fitMonthCells(){
+  const narrow = isNarrow();
+  document.querySelectorAll("#grid .day").forEach(day => {
+    const evs  = day.querySelector(".evs");
+    const more = day.querySelector(".more");
+    if(!evs || !more) return;
+
+    const items = Array.prototype.slice.call(evs.children);
+    items.forEach(el => { el.style.display = ""; });
+    more.style.display = "none";
+    more.textContent = "";
+    if(narrow || !items.length) return;
+
+    // 높이는 계산하지 않고 잰다. 간격·줄높이를 손으로 더하면 한 건씩 어긋난다.
+    const cs     = getComputedStyle(day);
+    const dnum   = day.querySelector(".dnum");
+    const dayGap = parseFloat(cs.rowGap || cs.gap) || 3;
+    const avail  = day.clientHeight
+                 - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+                 - (dnum ? dnum.offsetHeight : 0)
+                 - dayGap;
+
+    if(evs.scrollHeight <= avail) return;              // 다 들어간다
+
+    // 넘친다 -> 「+N건」 자리를 만들고 들어갈 때까지 한 건씩 접는다
+    more.style.display = "";
+    more.textContent   = "+0건";
+    const moreH = more.offsetHeight + dayGap;
+
+    let n = items.length;
+    while(n > 1){
+      n--;
+      for(let i = n; i < items.length; i++) items[i].style.display = "none";
+      if(evs.scrollHeight + moreH <= avail) break;
+    }
+    more.textContent = "+" + (items.length - n) + "건";
+  });
+}
+
+/* ---------- 날짜 목록 (좁은 화면 전용) ---------- */
+function isNarrow(){ return window.matchMedia("(max-width:720px)").matches; }
+
+function openDay(k){
+  selectedDay = (selectedDay === k) ? null : k;   // 같은 날을 다시 누르면 접는다
+  renderMain();
+}
+
+function renderDaySheet(){
+  const el = $("daySheet");
+  if(!selectedDay || !isNarrow()){
+    el.className = "daysheet";
+    el.innerHTML = "";
+    return;
+  }
+
+  const d    = new Date(selectedDay + "T00:00");
+  const list = events
+    .filter(ev => dayKey(new Date(ev.starts_at)) === selectedDay)
+    .sort((a, b) => {
+      if(a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+      return new Date(a.starts_at) - new Date(b.starts_at);
+    });
+
+  el.className = "daysheet on";
+  el.innerHTML =
+      '<div class="dhead">'
+    +   (d.getMonth()+1) + "월 " + d.getDate() + "일 (" + DOW_KO[d.getDay()] + ")"
+    +   '<span class="spacer"></span>'
+    +   '<button class="btn btn-sm btn-primary" id="dsAdd">+ 추가</button>'
+    + "</div>"
+    + (list.length
+        ? list.map(ev => {
+            const mine = ev.owner_id === me.id;
+            const who  = mine ? "" : (members[ev.owner_id] || "배우자");
+            const sub  = [who, ev.location].filter(Boolean).join(" · ");
+            return '<div class="drow'+(mine?"":" theirs")+'" data-d="'+ev.id+'">'
+                 +   '<div class="dt">'+(ev.all_day ? "종일" : hhmm(new Date(ev.starts_at)))+"</div>"
+                 +   "<div>"
+                 +     '<div class="dn">'+escapeHtml(ev.title)+"</div>"
+                 +     (sub ? '<div class="dsub">'+escapeHtml(sub)+"</div>" : "")
+                 +   "</div>"
+                 + "</div>";
+          }).join("")
+        : '<div class="dempty">이 날은 일정이 없습니다.</div>');
+
+  $("dsAdd").onclick = () => openModal(null, selectedDay);
+  el.querySelectorAll("[data-d]").forEach(row => {
+    row.onclick = () => {
+      const ev = events.find(x => x.id === row.dataset.d);
+      if(ev) openModal(ev);
+    };
+  });
+}
+
+// 창 폭이 바뀌면 칸의 표현 방식(글자 ↔ 점)이 달라지므로 다시 그린다
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if(me) renderMain(); }, 150);
+});
+
+$("prevM").onclick   = () => shift(-1);
+$("nextM").onclick   = () => shift( 1);
+$("todayBtn").onclick= () => {
+  viewMonth = startOfMonth(new Date());
+  anchor = new Date();
+  selectedDay = null;
+  loadEvents();
+};
+$("seg").querySelectorAll("button").forEach(b =>
+  b.onclick = () => setView(b.dataset.v));
+$("addBtn").onclick  = () => openModal(null, dayKey(new Date()));
+
+/* ================================================================
+   5-b. 다가오는 일정 (하단 띠)
+   달력이 보여주는 달과 무관하게, 언제나 「지금부터 앞으로」를 가리킨다.
+   3월을 들여다보고 있어도 하단은 다음 일정을 말해야 하기 때문에
+   events 배열을 재활용하지 않고 따로 조회한다.
+   ================================================================ */
+const UP_LIMIT = 12;
+const DOW_KO = ["일","월","화","수","목","금","토"];
+
+/** 오늘 자정 */
+function todayStart(){
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
+/**
+ * 앞으로 남은 일정만 골라 시간순으로 세운다.
+ *  - 시각이 있는 일정: 시작이 「지금」보다 뒤여야 한다 (오전 9시 회의는 오후 3시에 안 보인다)
+ *  - 종일 일정: 자정으로 저장되므로 시각으로 재면 오늘 것이 통째로 사라진다.
+ *              그래서 종일은 「날짜」로 잰다.
+ */
+function pickUpcoming(list){
+  const now = new Date();
+  const t0  = todayStart();
+  return (list || [])
+    .filter(ev => {
+      const s = new Date(ev.starts_at);
+      return ev.all_day ? s >= t0 : s >= now;
+    })
+    .sort((a, b) => {
+      const d = new Date(a.starts_at) - new Date(b.starts_at);
+      if(d !== 0) return d;
+      if(a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+      return 0;
+    })
+    .slice(0, UP_LIMIT);
+}
+
+async function loadUpcoming(){
+  if(demo){ upcoming = pickUpcoming(events); renderUpcoming(); return; }
+  // 넉넉히 받아 와서 위 규칙으로 거른다(오늘 지나간 일정이 섞여 오므로).
+  const { data, error } = await sb.from("events")
+    .select("*")
+    .gte("starts_at", todayStart().toISOString())
+    .order("starts_at")
+    .limit(UP_LIMIT * 4);
+  if(error){ console.error(error); return; }
+  upcoming = pickUpcoming(data);
+  renderUpcoming();
+
+  // 알람은 「다가오는 일정」의 것만 들고 있으면 된다
+  const ids = upcoming.map(function(e){ return e.id; });
+  if(ids.length){
+    const r = await sb.from("reminders").select("*").in("event_id", ids);
+    reminders = r.data || [];
+  }else{
+    reminders = [];
+  }
+}
+
+/** 오늘·내일·모레는 말로, 그 뒤는 날짜로 */
+function relDay(d){
+  const t0 = todayStart();
+  const d0 = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((d0 - t0) / 86400000);
+  if(diff === 0) return "오늘";
+  if(diff === 1) return "내일";
+  if(diff === 2) return "모레";
+  return (d.getMonth()+1) + "/" + d.getDate() + " (" + DOW_KO[d.getDay()] + ")";
+}
+
+function renderUpcoming(){
+  $("upCount").textContent = upcoming.length ? upcoming.length + "건" : "";
+
+  if(!upcoming.length){
+    $("upStrip").innerHTML = '<div class="none">앞으로 예정된 일정이 없습니다.</div>';
+    return;
+  }
+
+  const now = new Date();
+  $("upStrip").innerHTML = upcoming.map(ev => {
+    const s    = new Date(ev.starts_at);
+    const mine = ev.owner_id === me.id;
+    const soon = !ev.all_day && (s - now) <= 3*60*60*1000;   // 3시간 안 → 강조
+    const when = relDay(s) + (ev.all_day ? " · 종일" : " " + hhmm(s));
+    const who  = mine ? "" : (members[ev.owner_id] || "배우자");
+    const sub  = [who, ev.location].filter(Boolean).join(" · ");
+    return '<div class="uc'+(mine?"":" theirs")+(soon?" soon":"")+'" data-up="'+ev.id+'">'
+         +   '<div class="when">'+escapeHtml(when)+"</div>"
+         +   '<div class="t">'+escapeHtml(ev.title)+"</div>"
+         +   '<div class="sub">'+(sub ? escapeHtml(sub) : "&nbsp;")+"</div>"
+         + "</div>";
+  }).join("");
+
+  $("upStrip").querySelectorAll("[data-up]").forEach(el => {
+    el.onclick = () => {
+      const ev = upcoming.find(x => x.id === el.dataset.up);
+      if(!ev) return;
+      // 다른 달의 일정이면 달력도 그 달로 옮겨 준다 — 맥락을 잃지 않도록
+      const s = new Date(ev.starts_at);
+      if(s.getFullYear() !== viewMonth.getFullYear() || s.getMonth() !== viewMonth.getMonth()){
+        viewMonth = startOfMonth(s);
+        loadEvents();
+      }
+      openModal(ev);
+    };
+  });
+}
+
+/* ================================================================
+   5-c. 메모 — 시각이 없는 것을 적어 두는 곳
+   장보기 목록·집 비밀번호·아이 준비물처럼 「언제」가 없는 것.
+   ================================================================ */
+function noteTitle(body){
+  const first = (body || "").split("\n")[0].trim();
+  return first || "제목 없는 메모";
+}
+function noteRest(body){
+  return (body || "").split("\n").slice(1).join("\n").trim();
+}
+
+async function loadNotes(){
+  if(demo){ renderMain(); return; }
+  const { data, error } = await sb.from("notes")
+    .select("*").order("updated_at", { ascending:false }).limit(200);
+  if(error){ console.error(error); return; }
+  notes = data || [];
+  if(view === "notes" || view === "search") renderMain();
+}
+
+function renderNotes(){
+  const head =
+      '<div class="lst"><div class="lh">메모 '
+    +   (notes.length ? '<span style="font-weight:400;color:var(--ink3)">'+notes.length+"건</span>" : "")
+    +   '<span class="spacer"></span>'
+    +   '<button class="btn btn-sm btn-primary" id="nAdd">+ 새 메모</button></div>';
+
+  const body = notes.length
+    ? notes.map(n => {
+        const rest = noteRest(n.body);
+        const who  = (members[n.author_id] || "") ;
+        return '<div class="noteitem" data-n="'+n.id+'">'
+             +   '<div class="nt">'+escapeHtml(noteTitle(n.body))+"</div>"
+             +   (rest ? '<div class="nb">'+escapeHtml(rest)+"</div>" : "")
+             +   '<div class="nm">'+escapeHtml(who)+" · "
+             +     new Date(n.updated_at).toLocaleString("ko-KR",
+                     {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})
+             +   "</div>"
+             + "</div>";
+      }).join("")
+    : '<div class="rempty">아직 메모가 없습니다.<br>장보기 목록이나 잊기 쉬운 것을 적어 두세요.</div>';
+
+  $("paneList").innerHTML = head + body + "</div>";
+  $("nAdd").onclick = () => openNote(null);
+  $("paneList").querySelectorAll("[data-n]").forEach(el =>
+    el.onclick = () => {
+      const n = notes.find(x => x.id === el.dataset.n)
+             || searchRes.notes.find(x => x.id === el.dataset.n);
+      if(n) openNote(n);
+    });
+}
+
+/* ---------- 메모 모달 ---------- */
+function openNote(n){
+  editingNote = n || null;
+  msg($("nErr"), "");
+  $("nTitle").textContent = n ? "메모 수정" : "새 메모";
+  $("nDel").style.display = n ? "inline-block" : "none";
+  $("nBody").value = n ? n.body : "";
+  $("nMeta").textContent = n
+    ? (members[n.author_id] || "") + " · " + new Date(n.updated_at).toLocaleString("ko-KR")
+    : "";
+  $("nMask").classList.add("on");
+  setTimeout(() => $("nBody").focus(), 30);
+}
+function closeNote(){ $("nMask").classList.remove("on"); editingNote = null; }
+
+$("nCancel").onclick = closeNote;
+$("nMask").onclick = (e) => { if(e.target === $("nMask")) closeNote(); };
+
+$("nSave").onclick = async () => {
+  const body = $("nBody").value.trim();
+  if(!body) return msg($("nErr"), "내용을 입력해 주세요.");
+
+  if(demo){
+    const now = new Date().toISOString();
+    if(editingNote){ editingNote.body = body; editingNote.updated_at = now; }
+    else notes.unshift({ id:"demo-n"+Date.now(), household_id:"demo-hh",
+                         author_id:me.id, body:body, created_at:now, updated_at:now });
+    notes.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
+    closeNote(); renderMain(); return;
+  }
+
+  $("nSave").disabled = true;
+  try{
+    if(editingNote){
+      const { error } = await sb.from("notes").update({ body }).eq("id", editingNote.id);
+      if(error) throw error;
+    }else{
+      const { error } = await sb.from("notes").insert({
+        household_id: myProfile.household_id, author_id: me.id, body
+      });
+      if(error) throw error;
+    }
+    closeNote();
+    await loadNotes();
+  }catch(e){
+    msg($("nErr"), e.message || String(e));
+  }finally{
+    $("nSave").disabled = false;
+  }
+};
+
+$("nDel").onclick = async () => {
+  if(!editingNote) return;
+  if(!confirm("이 메모를 지울까요?\n\n"+noteTitle(editingNote.body))) return;
+  if(demo){
+    notes = notes.filter(x => x.id !== editingNote.id);
+    closeNote(); renderMain(); return;
+  }
+  $("nDel").disabled = true;
+  const { error } = await sb.from("notes").delete().eq("id", editingNote.id);
+  $("nDel").disabled = false;
+  if(error) return msg($("nErr"), error.message);
+  closeNote();
+  await loadNotes();
+};
+
+/* ================================================================
+   5-d. 검색 — 일정(제목·장소·메모)과 메모 본문
+   대기함 원문은 대상에서 뺀다. 이미 처리한 문자가 계속 걸리기 때문이다.
+   ================================================================ */
+let searchTimer = null;
+
+function syncQ(){
+  $("q").parentElement.classList.toggle("has", $("q").value.length > 0);
+}
+
+$("q").oninput = () => {
+  syncQ();
+  clearTimeout(searchTimer);
+  const v = $("q").value.trim();
+  searchTimer = setTimeout(() => {
+    if(!v){ if(view === "search") setView("month"); return; }
+    searchQ = v;
+    view = "search";
+    syncViewUI();
+    runSearch();
+  }, 220);
+};
+$("qClear").onclick = () => { $("q").value = ""; syncQ(); setView("month"); };
+
+/** 특수문자를 걸러 낸다 — PostgREST의 or() 는 쉼표·괄호를 구분자로 쓴다 */
+function safeQ(s){ return s.replace(/[,()*%\\]/g, " ").trim(); }
+
+async function runSearch(){
+  const q = searchQ.toLowerCase();
+
+  if(demo){
+    const hit = (s) => (s || "").toLowerCase().includes(q);
+    searchRes.events = events.filter(e => hit(e.title) || hit(e.location) || hit(e.memo))
+                             .sort((a,b) => new Date(b.starts_at) - new Date(a.starts_at));
+    searchRes.notes  = notes.filter(n => hit(n.body));
+    renderMain();
+    return;
+  }
+
+  const s = safeQ(searchQ);
+  if(!s){ searchRes = { events:[], notes:[] }; renderMain(); return; }
+
+  const [ev, nt] = await Promise.all([
+    sb.from("events").select("*")
+      .or("title.ilike.%"+s+"%,location.ilike.%"+s+"%,memo.ilike.%"+s+"%")
+      .order("starts_at", { ascending:false }).limit(60),
+    sb.from("notes").select("*")
+      .ilike("body", "%"+s+"%")
+      .order("updated_at", { ascending:false }).limit(60)
+  ]);
+  if(ev.error) console.error(ev.error);
+  if(nt.error) console.error(nt.error);
+  searchRes = { events: ev.data || [], notes: nt.data || [] };
+  renderMain();
+}
+
+/** 찾은 글자에 표시를 남긴다 */
+function mark(text, q){
+  const src = String(text == null ? "" : text);
+  const i = src.toLowerCase().indexOf(q.toLowerCase());
+  if(i < 0) return escapeHtml(src);
+  return escapeHtml(src.slice(0, i))
+       + "<mark>" + escapeHtml(src.slice(i, i+q.length)) + "</mark>"
+       + escapeHtml(src.slice(i+q.length));
+}
+
+function renderSearch(){
+  const q = searchQ;
+  const E = searchRes.events, N = searchRes.notes;
+
+  if(!E.length && !N.length){
+    $("paneList").innerHTML =
+      '<div class="lst"><div class="rempty">「'+escapeHtml(q)+'」에 해당하는 것이 없습니다.</div></div>';
+    return;
+  }
+
+  let html = "";
+
+  if(E.length){
+    html += '<div class="secttl">일정 '+E.length+"건</div>"
+         +  '<div class="lst">'
+         +  E.map(ev => {
+              const d = new Date(ev.starts_at);
+              const mine = ev.owner_id === me.id;
+              const who  = mine ? "" : (members[ev.owner_id] || "배우자");
+              const sub  = [who, ev.location].filter(Boolean).join(" · ");
+              return '<div class="row'+(mine?"":" theirs")+'" data-ev="'+ev.id+'">'
+                   +   '<div class="rt" style="min-width:74px">'
+                   +     (d.getMonth()+1)+"/"+d.getDate()
+                   +     (ev.all_day ? "" : " "+hhmm(d)) + "</div>"
+                   +   "<div>"
+                   +     '<div class="rn">'+mark(ev.title, q)+"</div>"
+                   +     (sub ? '<div class="rs">'+mark(sub, q)+"</div>" : "")
+                   +   "</div>"
+                   + "</div>";
+            }).join("")
+         +  "</div>";
+  }
+
+  if(N.length){
+    html += '<div class="secttl">메모 '+N.length+"건</div>"
+         +  '<div class="lst">'
+         +  N.map(n =>
+              '<div class="noteitem" data-n="'+n.id+'">'
+            +   '<div class="nt">'+mark(noteTitle(n.body), q)+"</div>"
+            +   '<div class="nb">'+mark(n.body, q)+"</div>"
+            + "</div>").join("")
+         +  "</div>";
+  }
+
+  $("paneList").innerHTML = html;
+  wireEventRows($("paneList"));
+  $("paneList").querySelectorAll("[data-n]").forEach(el =>
+    el.onclick = () => {
+      const n = searchRes.notes.find(x => x.id === el.dataset.n);
+      if(n) openNote(n);
+    });
+}
+
+/* ================================================================
+   5-e. 알람
+   ★ 한계를 먼저 적는다: 이 알람은 「이 화면이 열려 있는 동안」에만 울린다.
+      브라우저를 닫으면 울리지 않는다. 폰이 잠겨 있어도 울리는 진짜 알람은
+      안드로이드 앱(AlarmManager)의 몫이고 3단계에서 만든다.
+      PC에서는 소리를 내지 않는다 — 화면 팝업만 띄운다.
+   ================================================================ */
+const FIRED_KEY = "wj.fired";
+let firedSet = loadFired();
+
+function loadFired(){
+  try{ return new Set(JSON.parse(localStorage.getItem(FIRED_KEY) || "[]")); }
+  catch(e){ return new Set(); }
+}
+function saveFired(){
+  // 새로고침해도 같은 알람이 다시 울리지 않게 남긴다
+  try{ localStorage.setItem(FIRED_KEY, JSON.stringify(Array.from(firedSet).slice(-300))); }
+  catch(e){}
+}
+
+function showAlarm(ev, off){
+  const s    = new Date(ev.starts_at);
+  const when = ev.all_day ? "종일" : hhmm(s);
+  const sub  = (s.getMonth()+1)+"/"+s.getDate()+" "+when
+             + (ev.location ? " · "+ev.location : "");
+  $("alarmBox").innerHTML =
+      '<div class="at">알람 · '+(off ? off+"분 전" : "지금")+"</div>"
+    + '<div class="an">'+escapeHtml(ev.title)+"</div>"
+    + '<div class="as">'+escapeHtml(sub)+"</div>"
+    + '<div class="aa"><button class="btn btn-sm btn-primary" id="alarmOk">확인</button></div>';
+  $("alarmBox").classList.add("on");
+  $("alarmOk").onclick = function(){ $("alarmBox").classList.remove("on"); };
+  try{
+    if(window.Notification && Notification.permission === "granted"){
+      new Notification("우리 일정 · "+when, { body: ev.title });
+    }
+  }catch(e){}
+}
+
+/** 15초마다 「울릴 때가 된 알람」을 찾는다 */
+function alarmTick(){
+  if(!me) return;
+  const now  = Date.now();
+  const byId = {};
+  events.forEach(function(e){ byId[e.id] = e; });
+  upcoming.forEach(function(e){ byId[e.id] = e; });
+
+  reminders.forEach(function(r){
+    if(r.enabled === false) return;
+    const ev = byId[r.event_id];
+    if(!ev) return;
+    const off = r.offset_minutes || 0;
+    const at  = new Date(ev.starts_at).getTime() - off*60000;
+    const key = r.event_id + ":" + off;
+    if(firedSet.has(key)) return;
+    // 지난 지 1시간이 넘은 것은 울리지 않는다 — 화면을 오래 켜 두면 옛 알람이 쏟아진다
+    if(at <= now && now - at < 60*60*1000){
+      firedSet.add(key); saveFired();
+      showAlarm(ev, off);
+    }
+  });
+}
+setInterval(alarmTick, 15000);
+
+/** 1분 뒤에 울리는 일정을 만들어 실제로 울리는지 본다 */
+$("alarmTestBtn").onclick = async function(){
+  // 알림 권한은 사용자가 누른 이 순간에만 물을 수 있다
+  try{
+    if(window.Notification && Notification.permission === "default") Notification.requestPermission();
+  }catch(e){}
+
+  const at = new Date(Date.now() + 60*1000);
+  at.setSeconds(0, 0);
+  if(at.getTime() <= Date.now()) at.setMinutes(at.getMinutes() + 1);
+  const say = "알람 시험 일정을 " + hhmm(at) + " 로 넣었습니다.\n"
+            + "이 화면을 열어 둔 채 기다리면 그때 팝업이 뜹니다.";
+
+  if(demo){
+    const id = "demo-a" + Date.now();
+    events.push({ id:id, household_id:"demo-hh", owner_id:me.id,
+                  title:"알람 시험", starts_at:at.toISOString(), ends_at:null,
+                  all_day:false, location:null, memo:null,
+                  visibility:"shared", source:"manual" });
+    reminders.push({ event_id:id, offset_minutes:0, enabled:true });
+    renderMain(); loadUpcoming();
+    alert(say);
+    return;
+  }
+
+  const res = await sb.from("events").insert({
+    household_id: myProfile.household_id, owner_id: me.id,
+    title:"알람 시험", starts_at: at.toISOString(), visibility:"shared"
+  }).select("id").single();
+  if(res.error){ alert("실패: "+res.error.message); return; }
+  await sb.from("reminders").insert({ event_id: res.data.id, offset_minutes: 0 });
+  await Promise.all([ loadEvents(), loadUpcoming() ]);
+  alert(say);
+};
+
+/* ================================================================
+   6. 확인 대기함
+   ================================================================ */
+async function loadInbox(){
+  if(demo){ renderInbox(); return; }
+  const { data, error } = await sb.from("inbox_items")
+    .select("*").eq("status","pending").order("captured_at",{ascending:false});
+  if(error){ console.error(error); return; }
+  inbox = data || [];
+  renderInbox();
+}
+
+const SRC_LABEL = { sms:"문자", kakao:"카카오톡", email:"이메일" };
+
+function renderInbox(){
+  const badge = $("inboxCount");
+  badge.style.display = inbox.length ? "inline-grid" : "none";
+  badge.textContent = inbox.length;
+
+  if(!inbox.length){
+    $("inboxList").innerHTML =
+      '<div class="empty">확인할 것이 없습니다.<br>문자·카톡에서 일정이 발견되면 여기 쌓입니다.</div>';
+    return;
+  }
+
+  $("inboxList").innerHTML = inbox.map(it => {
+    const when = it.suggested_starts_at ? new Date(it.suggested_starts_at) : null;
+    const whenText = when
+      ? when.getFullYear()+"."+pad(when.getMonth()+1)+"."+pad(when.getDate())+" "+hhmm(when)
+      : "시각을 못 찾았습니다 — 직접 정해주세요";
+    return ''
+      + '<div class="item">'
+      +   '<div class="src"><span>'+(SRC_LABEL[it.source]||it.source)
+      +     (it.sender ? " · "+escapeHtml(it.sender) : "")+"</span>"
+      +     "<span>"+new Date(it.captured_at).toLocaleString("ko-KR",
+              {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})+"</span></div>"
+      +   '<div class="raw">'+escapeHtml(it.raw_text)+"</div>"
+      +   '<div class="sug">'+escapeHtml(it.suggested_title || "제목 없음")+"</div>"
+      +   '<div class="sugtime'+(when?"":" none")+'">'+escapeHtml(whenText)+"</div>"
+      +   '<div class="acts">'
+      +     '<button class="btn btn-sm btn-primary" data-ok="'+it.id+'">확인하고 등록</button>'
+      +     '<button class="btn btn-sm" data-no="'+it.id+'">아니오</button>'
+      +   "</div>"
+      + "</div>";
+  }).join("");
+
+  $("inboxList").querySelectorAll("[data-ok]").forEach(b => {
+    b.onclick = () => {
+      const it = inbox.find(x => x.id === b.dataset.ok);
+      if(it) openInboxModal(it);
+    };
+  });
+  $("inboxList").querySelectorAll("[data-no]").forEach(b => {
+    b.onclick = async () => {
+      b.disabled = true;
+      if(demo){
+        inbox = inbox.filter(x => x.id !== b.dataset.no);
+        renderInbox();
+        return;
+      }
+      const { error } = await sb.from("inbox_items")
+        .update({ status:"rejected" }).eq("id", b.dataset.no);
+      if(error){ alert("실패: "+error.message); b.disabled = false; return; }
+      await loadInbox();
+    };
+  });
+}
+
+/* ---------- 시험용 후보 넣기 (2단계에서 제거) ---------- */
+$("fakeBtn").onclick = async () => {
+  const t = new Date(); t.setDate(t.getDate()+2); t.setHours(15,0,0,0);
+  const stamp = Date.now();
+  if(demo){
+    inbox.unshift({
+      id:"demo-f"+stamp, source:"sms", sender:"1588-0000",
+      raw_text:"[시험] 예약하신 진료 일정 안내드립니다.\n"
+              +(t.getMonth()+1)+"월 "+t.getDate()+"일 오후 3시, 서울내과의원입니다.",
+      captured_at:new Date().toISOString(),
+      suggested_title:"서울내과의원 진료",
+      suggested_starts_at:t.toISOString(),
+      suggested_location:"서울내과의원",
+      extractor:"rule", confidence:0.8
+    });
+    renderInbox();
+    return;
+  }
+  const { error } = await sb.from("inbox_items").insert({
+    household_id: myProfile.household_id,
+    captured_by:  me.id,
+    source:       "sms",
+    sender:       "1588-0000",
+    raw_text:     "[시험] 안녕하세요. 예약하신 진료 일정 안내드립니다.\n"
+                + (t.getMonth()+1)+"월 "+t.getDate()+"일 오후 3시, 서울내과의원입니다.",
+    suggested_title:     "서울내과의원 진료",
+    suggested_starts_at: t.toISOString(),
+    suggested_location:  "서울내과의원",
+    extractor:    "rule",
+    confidence:   0.8,
+    dedup_key:    "fake-"+stamp
+  });
+  if(error) alert("실패: "+error.message);
+};
+
+/* ================================================================
+   7. 일정 모달
+   ================================================================ */
+function openModal(ev, dayStr){
+  editing = ev || null;
+  pendingInbox = null;
+  msg($("mErr"), "");
+  $("mTitle").textContent = ev ? "일정 수정" : "새 일정";
+  $("mDel").style.display = ev ? "inline-block" : "none";
+  $("mSrc").textContent = "";
+
+  if(ev){
+    $("mName").value  = ev.title || "";
+    $("mAllDay").checked = !!ev.all_day;
+    $("mStart").value = toInput(new Date(ev.starts_at));
+    $("mEnd").value   = ev.ends_at ? toInput(new Date(ev.ends_at)) : "";
+    $("mPlace").value = ev.location || "";
+    $("mMemo").value  = ev.memo || "";
+    $("mVis").value   = ev.visibility || "shared";
+    $("mRemind").value = "";
+    loadReminder(ev.id);
+    if(ev.source !== "manual"){
+      $("mSrc").textContent = "이 일정은 " + (SRC_LABEL[ev.source]||ev.source) + "에서 자동으로 만들어졌습니다.";
+    }
+    if(ev.owner_id !== me.id){
+      $("mSrc").textContent += (members[ev.owner_id]||"배우자") + "님의 일정입니다.";
+    }
+  }else{
+    const base = dayStr ? new Date(dayStr+"T09:00") : new Date();
+    if(!dayStr) base.setMinutes(0,0,0);
+    $("mName").value  = "";
+    $("mAllDay").checked = false;
+    $("mStart").value = toInput(base);
+    $("mEnd").value   = "";
+    $("mPlace").value = "";
+    $("mMemo").value  = "";
+    $("mVis").value   = "shared";
+    $("mRemind").value = "30";
+  }
+  syncAllDay();
+  $("mask").classList.add("on");
+  setTimeout(() => $("mName").focus(), 30);
+}
+
+/** 대기함 항목을 승인할 때 — 제안값을 채운 모달을 연다 */
+function openInboxModal(it){
+  openModal(null, null);
+  pendingInbox = it;
+  $("mTitle").textContent = "확인하고 등록";
+  $("mName").value  = it.suggested_title || "";
+  $("mPlace").value = it.suggested_location || "";
+  $("mMemo").value  = it.raw_text || "";
+  if(it.suggested_starts_at) $("mStart").value = toInput(new Date(it.suggested_starts_at));
+  if(it.suggested_ends_at)   $("mEnd").value   = toInput(new Date(it.suggested_ends_at));
+  $("mSrc").textContent =
+    (SRC_LABEL[it.source]||it.source) + (it.sender ? " · "+it.sender : "") + " 에서 온 내용입니다.";
+  if(!it.suggested_starts_at){
+    msg($("mErr"), "메시지에서 시각을 찾지 못했습니다. 직접 정해 주세요.", "err");
+  }
+}
+
+async function loadReminder(eventId){
+  if(demo) return;
+  const { data } = await sb.from("reminders")
+    .select("offset_minutes").eq("event_id", eventId).eq("enabled", true).limit(1);
+  if(data && data.length){
+    const v = String(data[0].offset_minutes);
+    if([...$("mRemind").options].some(o => o.value === v)) $("mRemind").value = v;
+  }
+}
+
+$("mAllDay").onchange = syncAllDay;
+function syncAllDay(){
+  const on = $("mAllDay").checked;
+  $("mEnd").disabled = on;
+  if(on){
+    // 종일이면 그날 자정으로 맞춘다
+    const v = $("mStart").value;
+    if(v) $("mStart").value = v.split("T")[0] + "T00:00";
+    $("mEnd").value = "";
+  }
+}
+
+$("mCancel").onclick = closeModal;
+$("mask").onclick = (e) => { if(e.target === $("mask")) closeModal(); };
+document.addEventListener("keydown", (e) => {
+  if(e.key !== "Escape") return;
+  if($("mask").classList.contains("on"))  closeModal();
+  if($("nMask").classList.contains("on")) closeNote();
+});
+function closeModal(){
+  $("mask").classList.remove("on");
+  editing = null; pendingInbox = null;
+}
+
+$("mSave").onclick = async () => {
+  const title = $("mName").value.trim();
+  const start = fromInput($("mStart").value);
+  const end   = $("mAllDay").checked ? null : fromInput($("mEnd").value);
+  const remind = $("mRemind").value === "" ? null : Number($("mRemind").value);
+
+  if(!title) return msg($("mErr"), "제목을 입력해 주세요.");
+  if(!start) return msg($("mErr"), "시작 시각을 정해 주세요.");
+  if(end && end <= start) return msg($("mErr"), "종료가 시작보다 빠르거나 같습니다.");
+
+  // ── 둘러보기: 메모리에서만 처리한다 ──
+  if(demo){
+    const base = {
+      title:      title,
+      starts_at:  start.toISOString(),
+      ends_at:    end ? end.toISOString() : null,
+      all_day:    $("mAllDay").checked,
+      location:   $("mPlace").value.trim() || null,
+      memo:       $("mMemo").value.trim() || null,
+      visibility: $("mVis").value
+    };
+    const newId = "demo-n" + Date.now();
+    if(pendingInbox){
+      events.push(Object.assign({ id:newId, owner_id:me.id,
+                                  source:pendingInbox.source }, base));
+      inbox = inbox.filter(x => x.id !== pendingInbox.id);
+    }else if(editing){
+      Object.assign(editing, base);
+    }else{
+      events.push(Object.assign({ id:newId, owner_id:me.id, source:"manual" }, base));
+    }
+    // 고른 알람을 기억해 둔다 (수정이면 그 일정의 알람을 갈아 끼운다)
+    const tgt = editing ? editing.id : newId;
+    reminders = reminders.filter(function(r){ return r.event_id !== tgt; });
+    if(remind !== null) reminders.push({ event_id:tgt, offset_minutes:remind, enabled:true });
+    closeModal();
+    renderMain();
+    renderInbox();
+    loadUpcoming();
+    return;
+  }
+
+  $("mSave").disabled = true;
+  try{
+    if(pendingInbox){
+      // 대기함 승인 — 일정 생성 + 알람 + 상태 갱신을 서버에서 한 번에
+      const { error } = await sb.rpc("accept_inbox_item", {
+        p_inbox_id:       pendingInbox.id,
+        p_title:          title,
+        p_starts_at:      start.toISOString(),
+        p_ends_at:        end ? end.toISOString() : null,
+        p_all_day:        $("mAllDay").checked,
+        p_location:       $("mPlace").value.trim() || null,
+        p_memo:           $("mMemo").value.trim() || null,
+        p_visibility:     $("mVis").value,
+        p_offset_minutes: remind
+      });
+      if(error) throw error;
+    }else{
+      const payload = {
+        household_id: myProfile.household_id,
+        owner_id:     me.id,
+        title:        title,
+        starts_at:    start.toISOString(),
+        ends_at:      end ? end.toISOString() : null,
+        all_day:      $("mAllDay").checked,
+        location:     $("mPlace").value.trim() || null,
+        memo:         $("mMemo").value.trim() || null,
+        visibility:   $("mVis").value
+      };
+      let eventId;
+      if(editing){
+        delete payload.owner_id;   // 소유자는 바꾸지 않는다
+        const { error } = await sb.from("events").update(payload).eq("id", editing.id);
+        if(error) throw error;
+        eventId = editing.id;
+        await sb.from("reminders").delete().eq("event_id", eventId);
+      }else{
+        const { data, error } = await sb.from("events").insert(payload).select("id").single();
+        if(error) throw error;
+        eventId = data.id;
+      }
+      if(remind !== null){
+        const { error } = await sb.from("reminders")
+          .insert({ event_id: eventId, offset_minutes: remind });
+        if(error) throw error;
+      }
+    }
+    closeModal();
+    await Promise.all([ loadEvents(), loadInbox(), loadUpcoming() ]);
+  }catch(e){
+    msg($("mErr"), e.message || String(e));
+  }finally{
+    $("mSave").disabled = false;
+  }
+};
+
+$("mDel").onclick = async () => {
+  if(!editing) return;
+  if(!confirm("이 일정을 지울까요?\n\n"+editing.title)) return;
+  if(demo){
+    events = events.filter(x => x.id !== editing.id);
+    closeModal();
+    renderMain();
+    loadUpcoming();
+    return;
+  }
+  $("mDel").disabled = true;
+  const { error } = await sb.from("events").delete().eq("id", editing.id);
+  $("mDel").disabled = false;
+  if(error) return msg($("mErr"), error.message);
+  closeModal();
+  await Promise.all([ loadEvents(), loadUpcoming() ]);
+};
+
+/* ================================================================
+   시작
+   ================================================================ */
+boot();
+</script>
+</body>
+</html>
