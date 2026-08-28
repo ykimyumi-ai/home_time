@@ -10,6 +10,16 @@
 <meta http-equiv="Expires" content="0">
 <title>우리 일정</title>
 
+<!-- 폰 홈 화면에 앱처럼 설치되게 한다 (주소창 없이 열림) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#3b5bdb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="우리 일정">
+
 <!--
   부부 공용 일정관리 — PC 화면
   파일 하나로 동작한다. 더블클릭하면 브라우저에서 열린다.
@@ -454,7 +464,7 @@
     <button class="btn btn-sm" id="demoExit">나가서 설정하기</button>
   </div>
   <header>
-    <div class="brand">우리 일정 <span class="ver" id="ver">v11</span></div>
+    <div class="brand">우리 일정 <span class="ver" id="ver">v12</span></div>
     <div class="nav">
       <button class="icon-btn" id="prevM" title="이전 달">‹</button>
       <div class="month" id="monthLabel"></div>
